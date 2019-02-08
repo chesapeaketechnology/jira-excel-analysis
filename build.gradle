@@ -1,0 +1,67 @@
+buildscript {
+    repositories {
+        jcenter {
+            url "http://jcenter.bintray.com/"
+        }
+    }
+}
+
+plugins {
+    id 'java'
+}
+
+group 'com.chesapeaketechnologies'
+version '1.0.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+allprojects {
+    repositories {
+        jcenter {
+            url "http://jcenter.bintray.com/"
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile(files('libs/net.rcarz.jira.client.fork.jar'))
+    compile group: 'org.apache.poi', name: 'poi', version: '4.0.1'
+    compile group: 'org.apache.poi', name: 'poi-ooxml', version: '4.0.1'
+    compile group: 'org.controlsfx', name: 'controlsfx', version: '8.40.14'
+    compile group: 'org.springframework.security', name: 'spring-security-crypto', version: '5.1.1.RELEASE'
+    compile group: 'javax.mail', name: 'mail', version: '1.4.7'
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    compile group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.25'
+    compile group: 'log4j', name: 'log4j', version: '1.2.17'
+    compile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.6'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.9.4'
+    compile group: 'com.typesafe', name: 'config', version: '1.3.3'
+
+    compile 'commons-io:commons-io:2.6'
+    compile group: 'org.json', name: 'json', version: '20180813'
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'org.apache.httpcomponents:httpclient:4.5.6'
+    }
+}
+
+jar {
+    doFirst {
+        manifest {
+            attributes(
+                    'Class-Path': configurations.compile.collect { it.toURI().toString() }.join(' '),
+                    'Main-Class': 'client.ui.fx.JiraReportGenerator')
+        }
+        from {
+            configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+        }
+    }
+}
