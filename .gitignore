@@ -1,3 +1,4 @@
 .idea/*
 log.out
 reports/*
+!/libs/net.rcarz.jira.client.fork.jar
