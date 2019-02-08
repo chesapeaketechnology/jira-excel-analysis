@@ -15,7 +15,7 @@ level the tools provides views of tickets in a hierarchical fashion allowing Ini
 
 Sample usage
 -----------------------------------
-###Headless
+Headless
 
 1. Define a configuration file specifying characteristics of your JIRA projects and any filters that you would like 
 applied to the project.
