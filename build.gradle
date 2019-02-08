@@ -58,7 +58,7 @@ jar {
         manifest {
             attributes(
                     'Class-Path': configurations.compile.collect { it.toURI().toString() }.join(' '),
-                    'Main-Class': 'client.ui.fx.JiraReportGenerator')
+                    'Main-Class': 'com.chesapeake.technology.ui.fx.JiraReportGenerator')
         }
         from {
             configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
