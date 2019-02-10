@@ -1,6 +1,7 @@
 package com.chesapeake.technology;
 
 import com.chesapeake.technology.model.IJiraIssueListener;
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.BasicCredentials;
 import net.rcarz.jiraclient.ICredentials;
 import net.rcarz.jiraclient.Issue;
@@ -20,10 +21,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -130,22 +133,30 @@ public class JiraRestClient
     /**
      * Performs a series of JIRA queries to retrieve information about Initiatives, Epics, and User Stories.
      */
-    public void loadJiraIssues(boolean includeInitatives, Collection<String> projects, Collection<String> usernames)
+    public void loadJiraIssues(Config config)
     {
         logger.info("Loading Initiatives, epics, and stories");
 
         long startTime = System.nanoTime();
 
+        Set<String> projects = new HashSet<>(config.getStringList("jira.filters.projects"));
+        Set<String> usernames = getReportFilters(config, "usernames");
+        Set<String> labels = getReportFilters(config, "labels");
+        boolean loadInitiatives = config.getBoolean("jira.filters.initiatives");
+
         loadCustomFields(projects.iterator().next());
 
-        if (includeInitatives)
+        Collection<CompletableFuture> completableFutures = null;
+
+        if (loadInitiatives)
         {
-            loadIssueMapsFromInitiatives(projects);
+            completableFutures = loadIssueMapsFromInitiatives(projects, labels);
         } else
         {
             loadEpicsDirectly(projects, usernames);
         }
 
+        completableFutures.forEach(CompletableFuture::join);
         epicStoryMap.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         initiativeEpicMap.values()
                 .forEach(epics -> epics
@@ -157,6 +168,25 @@ public class JiraRestClient
         logger.info("Finished querying in: {} seconds", ((endTime - startTime) / 1_000_000_000.0));
 
         jiraIssueListeners.forEach(listener -> listener.allIssuesRetrieved(initiativeEpicMap, epicStoryMap, fieldCustomIdMapping));
+    }
+
+    private Set<String> getReportFilters(Config config, String key)
+    {
+        List<? extends Config> configs = config.getConfigList("jira.reports");
+        Set<String> filters = new HashSet<>();
+
+        boolean includeAllIssues = configs.stream()
+                .map(reportConfig -> reportConfig.getStringList("filters." + key))
+                .anyMatch(List::isEmpty);
+
+        if (!includeAllIssues)
+        {
+            filters = configs.stream()
+                    .flatMap(reportConfig -> reportConfig.getStringList("filters." + key).stream())
+                    .collect(Collectors.toSet());
+        }
+
+        return filters;
     }
 
     /**
@@ -174,11 +204,12 @@ public class JiraRestClient
      *
      * @param projects JIRA defining groupings of initiatives, epics, and issues.
      */
-    private void loadIssueMapsFromInitiatives(Collection<String> projects)
+    private List<CompletableFuture> loadIssueMapsFromInitiatives(Set<String> projects, Set<String> labels)
     {
         String projectsFilter = String.join(",", projects);
         String initiativeJQL = "project in (" + projectsFilter + ") AND issuetype = Initiative";
-        String children = "issuekey in childIssuesOf(";
+        String childrenJQL = "issuekey in childIssuesOf(";
+        String labelsJQL = "labels in (" + String.join(",", labels) + ")";
 
         try
         {
@@ -188,37 +219,40 @@ public class JiraRestClient
 
             logger.info("Querying children of {} initiatives", initiativeQueryResult.issues.size());
 
-            initiativeQueryResult.issues.forEach(initiative -> {
-                //We need to requery for each initiative to find the associated child tickets. This query will include both Epics and User Stories
-                try
-                {
-                    Issue.SearchResult epicQueryResult;
+            return initiativeQueryResult.issues.stream()
+                    .map(initiative -> CompletableFuture.runAsync(() -> {
+                        try
+                        {
+                            Issue.SearchResult epicQueryResult;
 
-                    String changeLog = "";
+                            String changeLog = "";
 
-                    if (includeChangeLogs)
-                    {
-                        changeLog = "changelog";
-                    }
+                            if (includeChangeLogs)
+                            {
+                                changeLog = "changelog";
+                            }
 
-                    epicQueryResult = searchIssues(children + initiative.getKey() + ")", changeLog);
+                            //We need to requery for each initiative to find the associated child tickets. This query will include both Epics and User Stories
+                            epicQueryResult = searchIssues(childrenJQL + initiative.getKey() + ") AND " + labelsJQL, changeLog);
 
-                    epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
-                    logger.info("Successfully queried children of: {}", initiative.getKey());
-                    jiraIssueListeners.forEach(listener -> listener.childrenRetrieved(initiative, epicQueryResult.issues));
+                            epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
+                            logger.info("Successfully queried children of: {}", initiative.getKey());
+                            jiraIssueListeners.forEach(listener -> listener.childrenRetrieved(initiative, epicQueryResult.issues));
 
-                    initiativeEpicMap.put(initiative, epicQueryResult.issues.stream()
-                            .filter(issue -> issue.getIssueType().getName().equalsIgnoreCase("Epic"))
-                            .collect(Collectors.toList()));
-                } catch (Exception exception)
-                {
-                    logger.warn("Failed to query children of: {}", initiative.getKey(), exception);
-                }
-            });
+                            initiativeEpicMap.put(initiative, epicQueryResult.issues.stream()
+                                    .filter(issue -> issue.getIssueType().getName().equalsIgnoreCase("Epic"))
+                                    .collect(Collectors.toList()));
+                        } catch (Exception exception)
+                        {
+                            logger.warn("Failed to query children of: {}", initiative.getKey(), exception);
+                        }
+                    })).collect(Collectors.toList());
         } catch (Exception exception)
         {
             logger.warn("Failed to search issues: ", exception);
         }
+
+        return new ArrayList<>();
     }
 
     /**
@@ -229,16 +263,22 @@ public class JiraRestClient
     private void loadEpicsDirectly(Collection<String> projects, Collection<String> usernames)
     {
         String projectsFilter = String.join(",", projects);
-        String epicsJQL = "project in (" + projectsFilter + ")";
+        String projectJQL = "project in (" + projectsFilter + ")";
+
+        //TODO: Corrigan - Example epic query filter
+        //"epic link" in (XPATCH-96) OR id in (XPATCH-96)
+
+        //TODO: Corrigan - Example Sprint query filter
+        // Sprint in ("Iteration 4.1 - Dirty Dozen")
 
         if (usernames.size() > 0)
         {
-            epicsJQL += "AND assignee in (" + String.join(",", usernames) + ")";
+            projectJQL += "AND assignee in (" + String.join(",", usernames) + ")";
         }
         try
         {
-            Issue.SearchResult epicQueryResult = searchIssues(epicsJQL, "names");
-            logger.info("Successfully queried children of: {}", epicsJQL);
+            Issue.SearchResult epicQueryResult = searchIssues(projectJQL, "names");
+            logger.info("Successfully queried children of: {}", projectJQL);
             epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
             initiativeEpicMap.put(new EmptyIssue("Unassigned Epic"), new ArrayList<>(epicStoryMap.keySet()));
         } catch (Exception exception)

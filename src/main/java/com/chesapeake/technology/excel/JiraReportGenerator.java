@@ -30,10 +30,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package com.chesapeake.technology.ui.fx;
+package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.JiraRestClient;
-import com.chesapeake.technology.excel.HeadlessReportGenerator;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import net.rcarz.jiraclient.BasicCredentials;
@@ -41,7 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.invoke.MethodHandles;
-import java.util.Collection;
 
 /**
  * Generates an excel report providing summaries of elements across JIRA as well as metrics across an individual
@@ -60,22 +58,15 @@ public class JiraReportGenerator
             String username = System.getenv(("NEXUS_USERNAME"));
             String password = System.getenv(("NEXUS_PASSWORD"));
 
-            boolean includeChangeLogs = true;
-
-            Config headlessConfig = ConfigFactory.load(args[0]);
-            String baseUrl = headlessConfig.getString("jira-excel-analysis.baseUrl");
-            Collection<String> projects = headlessConfig.getStringList("jira-excel-analysis.projects");
-            Collection<String> usernames = headlessConfig.getStringList("jira-excel-analysis.usernames");
-
-            if (args.length > 1 && args[1].equals("developer"))
-            {
-                includeChangeLogs = false;
-            }
+            Config config = ConfigFactory.load(args[0]);
+            String baseUrl = config.getString("jira.baseUrl");
+            boolean includeChangeLogs = config.getBoolean("jira.importFullHistory");
 
             JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), includeChangeLogs);
 
-            requestClient.addIssueListener(new HeadlessReportGenerator(headlessConfig));
-            requestClient.loadJiraIssues(headlessConfig.getBoolean("jira-excel-analysis.includeInitiatives"), projects, usernames);
+
+            requestClient.addIssueListener(new HeadlessReportGenerator(config));
+            requestClient.loadJiraIssues(config);
         } else
         {
             logger.warn("Failed to buid jira report: please specify a configuration file");

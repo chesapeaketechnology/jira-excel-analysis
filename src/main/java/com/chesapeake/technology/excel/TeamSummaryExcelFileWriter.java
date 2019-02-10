@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * @author Proprietary information subject to the terms of a Non-Disclosure Agreement
  * @since 1.0.0
  */
-class DeveloperExcelFileWriter extends AExcelFileWriter
+class TeamSummaryExcelFileWriter extends AExcelFileWriter
 {
     private static final int DEVELOPER_COLUMN = 0;
     private static final int SPRINT_COLUMN = 1;
@@ -73,8 +73,8 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
      * @param initiativeEpicMap Map of initiative issues to the epics that compose them.
      * @param epicStoryMap      Map of epic issues to the user stories that compose them.
      */
-    DeveloperExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
-                             Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
+    TeamSummaryExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
+                               Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
     {
         super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
@@ -283,7 +283,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
         completedSeries.setTitle("Completed", null);
         commitmentSeries.setTitle("Commitment", null);
 
-        categoryAxis.setMaximum(15);
+//        categoryAxis.setMaximum();
 
         deltaSeries.plot();
         completedSeries.plot();

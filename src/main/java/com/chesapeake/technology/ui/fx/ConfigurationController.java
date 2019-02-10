@@ -4,6 +4,7 @@ import com.chesapeake.technology.JiraRestClient;
 import com.chesapeake.technology.excel.ExcelFileWriter;
 import com.chesapeake.technology.model.IJiraIssueListener;
 import com.chesapeake.technology.model.IssueWrapper;
+import com.typesafe.config.ConfigFactory;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -22,7 +23,6 @@ import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -213,8 +213,8 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
         requestClient.addIssueListener(this);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
-        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(true, Collections.singleton("JEACO"),
-                Collections.emptyList()));
+        //TODO: Build up the config before calling this
+        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(ConfigFactory.defaultApplication()));
         executorService.scheduleAtFixedRate(() -> Platform.runLater(() -> {
             double progress = progressBar.getProgress();
 

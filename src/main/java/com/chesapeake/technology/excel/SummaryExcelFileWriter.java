@@ -72,7 +72,7 @@ class SummaryExcelFileWriter extends AExcelFileWriter
     {
         super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-        excelSheet = workbook.createSheet("Issue Completion Rates");
+        excelSheet = workbook.createSheet("Goal Metrics");
     }
 
     void generateReport()

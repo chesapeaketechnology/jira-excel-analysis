@@ -19,7 +19,7 @@ import java.util.Map;
 public class ExcelFileWriter
 {
     private MasterExcelFileWriter masterExcelFileWriter;
-    private DeveloperExcelFileWriter developerExcelFileWriter;
+    private TeamSummaryExcelFileWriter developerExcelFileWriter;
     private SummaryExcelFileWriter summaryExcelFileWriter;
     private XSSFWorkbook workbook;
     private boolean includeMasterReport = true;
@@ -48,7 +48,7 @@ public class ExcelFileWriter
 
             workbook = new XSSFWorkbook();
             masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-//            developerExcelFileWriter = new DeveloperExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            developerExcelFileWriter = new TeamSummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
             summaryExcelFileWriter = new SummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
         } catch (Exception exception)
         {

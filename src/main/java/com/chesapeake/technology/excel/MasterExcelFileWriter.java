@@ -70,7 +70,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
     {
         super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-        bigPictureSheet = workbook.createSheet("All Issues");
+        bigPictureSheet = workbook.createSheet("Issue Summary");
         hiddenStyle = workbook.createCellStyle();
 
         XSSFFont font = workbook.createFont();

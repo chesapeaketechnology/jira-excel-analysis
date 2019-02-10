@@ -55,9 +55,9 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
         deleteOldReports(directory);
 
-        headlessPreferences.getObject("jira-excel-analysis").toConfig().getConfigList("reports").forEach(config -> {
+        headlessPreferences.getConfigList("jira.reports").forEach(config -> {
             String fileName = config.getString("fileName");
-            Collection<String> labels = config.getStringList("labelFilters");
+            Collection<String> labels = config.getStringList("filters.labels");
 
             try
             {
