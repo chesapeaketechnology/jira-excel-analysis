@@ -48,7 +48,7 @@ public class ExcelFileWriter
 
             workbook = new XSSFWorkbook();
             masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-//            developerExcelFileWriter = new DeveloperExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            developerExcelFileWriter = new DeveloperExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
             summaryExcelFileWriter = new SummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
         } catch (Exception exception)
         {
