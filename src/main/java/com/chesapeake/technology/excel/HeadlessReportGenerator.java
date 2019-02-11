@@ -24,13 +24,13 @@ import java.util.stream.Collectors;
  */
 public class HeadlessReportGenerator implements IJiraIssueListener
 {
-    private Config headlessPreferences;
+    private Config configuration;
 
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    public HeadlessReportGenerator(Config headlessPreferences)
+    public HeadlessReportGenerator(Config configuration)
     {
-        this.headlessPreferences = headlessPreferences;
+        this.configuration = configuration;
     }
 
     @Override
@@ -53,9 +53,12 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
         File directory = new File("reports/");
 
-        deleteOldReports(directory);
+        if(configuration.getBoolean("jira.removeOldReports"))
+        {
+            deleteOldReports(directory);
+        }
 
-        headlessPreferences.getConfigList("jira.reports").forEach(config -> {
+        configuration.getConfigList("jira.reports").forEach(config -> {
             String fileName = config.getString("fileName");
             Collection<String> labels = config.getStringList("filters.labels");
 

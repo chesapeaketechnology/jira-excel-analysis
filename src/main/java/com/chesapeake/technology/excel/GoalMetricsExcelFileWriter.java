@@ -47,7 +47,7 @@ import java.util.function.BiConsumer;
  * @author Proprietary information subject to the terms of a Non-Disclosure Agreement
  * @since 1.0.0
  */
-class SummaryExcelFileWriter extends AExcelFileWriter
+class GoalMetricsExcelFileWriter extends AExcelFileWriter
 {
     private XSSFSheet excelSheet;
     private Map<Issue, Double> initiativeCompletions = new HashMap<>();
@@ -67,8 +67,8 @@ class SummaryExcelFileWriter extends AExcelFileWriter
      * @param initiativeEpicMap A decomposition of initiatives into epics.
      * @param epicStoryMap      A decomposition of epics into initiatives.
      */
-    SummaryExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
-                           Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
+    GoalMetricsExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
+                               Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
     {
         super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
@@ -149,10 +149,20 @@ class SummaryExcelFileWriter extends AExcelFileWriter
         Row row;
 
         row = excelSheet.createRow(0);
-        row.createCell(INITIATIVE_NAME_COLUMN);
-        row.createCell(INITIATIVE_VALUE_COLUMN).setCellValue("Initiative");
-        row.createCell(EPIC_NAME_COLUMN); //Epic Name Column
-        row.createCell(EPIC_VALUE_COLUMN).setCellValue("Epic");
+        Cell initiativeNameCell = row.createCell(INITIATIVE_NAME_COLUMN);
+        Cell initiativeValueCell = row.createCell(INITIATIVE_VALUE_COLUMN);
+        Cell epicNameCell = row.createCell(EPIC_NAME_COLUMN);
+        Cell epicValueCell = row.createCell(EPIC_VALUE_COLUMN);
+
+        initiativeNameCell.setCellValue("Initiative");
+        initiativeValueCell.setCellValue("% Complete");
+        epicNameCell.setCellValue("Epic");
+        epicValueCell.setCellValue("% Complete");
+
+        initiativeNameCell.setCellStyle(titleStyle);
+        initiativeValueCell.setCellStyle(titleStyle);
+        epicNameCell.setCellStyle(titleStyle);
+        epicValueCell.setCellStyle(titleStyle);
 
         initiativeCompletions.forEach(new BiConsumer<Issue, Double>()
         {
@@ -167,7 +177,7 @@ class SummaryExcelFileWriter extends AExcelFileWriter
 
                 nameCell.setCellValue(issue.getSummary());
                 valueCell.setCellValue(percentComplete);
-                valueCell.setCellStyle(wrapStyle);
+                valueCell.setCellStyle(dataFormatStyle);
             }
         });
 
@@ -189,7 +199,7 @@ class SummaryExcelFileWriter extends AExcelFileWriter
 
                 nameCell.setCellValue(issue.getSummary());
                 valueCell.setCellValue(percentComplete);
-                valueCell.setCellStyle(wrapStyle);
+                valueCell.setCellStyle(dataFormatStyle);
             }
         });
 

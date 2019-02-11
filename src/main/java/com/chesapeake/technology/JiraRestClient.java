@@ -138,22 +138,21 @@ public class JiraRestClient
         logger.info("Loading Initiatives, epics, and stories");
 
         long startTime = System.nanoTime();
-
-        Set<String> projects = new HashSet<>(config.getStringList("jira.filters.projects"));
-        Set<String> usernames = getReportFilters(config, "usernames");
-        Set<String> labels = getReportFilters(config, "labels");
         boolean loadInitiatives = config.getBoolean("jira.filters.initiatives");
+        Set<String> projects = new HashSet<>(config.getStringList("jira.filters.projects"));
 
+        String epicQuery = getEpicQuery(config);
         loadCustomFields(projects.iterator().next());
 
         Collection<CompletableFuture> completableFutures = null;
 
         if (loadInitiatives)
         {
-            completableFutures = loadIssueMapsFromInitiatives(projects, labels);
+            completableFutures = loadIssueMapsFromInitiatives(projects, epicQuery);
         } else
         {
-            loadEpicsDirectly(projects, usernames);
+            //TODO: Load a completable future
+            loadEpicsDirectly(epicQuery, projects);
         }
 
         completableFutures.forEach(CompletableFuture::join);
@@ -204,12 +203,11 @@ public class JiraRestClient
      *
      * @param projects JIRA defining groupings of initiatives, epics, and issues.
      */
-    private List<CompletableFuture> loadIssueMapsFromInitiatives(Set<String> projects, Set<String> labels)
+    private List<CompletableFuture> loadIssueMapsFromInitiatives(Set<String> projects, String epicQuery)
     {
         String projectsFilter = String.join(",", projects);
         String initiativeJQL = "project in (" + projectsFilter + ") AND issuetype = Initiative";
         String childrenJQL = "issuekey in childIssuesOf(";
-        String labelsJQL = "labels in (" + String.join(",", labels) + ")";
 
         try
         {
@@ -223,6 +221,7 @@ public class JiraRestClient
                     .map(initiative -> CompletableFuture.runAsync(() -> {
                         try
                         {
+                            logger.info("Queued up children of: " + initiative.getKey());
                             Issue.SearchResult epicQueryResult;
 
                             String changeLog = "";
@@ -233,14 +232,15 @@ public class JiraRestClient
                             }
 
                             //We need to requery for each initiative to find the associated child tickets. This query will include both Epics and User Stories
-                            epicQueryResult = searchIssues(childrenJQL + initiative.getKey() + ") AND " + labelsJQL, changeLog);
+                            epicQueryResult = searchIssues(childrenJQL + initiative.getKey() + ")" + epicQuery, changeLog);
 
-                            epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
+                            epicStoryMap.putAll(getEpicStoryMap(epicQueryResult, projects));
                             logger.info("Successfully queried children of: {}", initiative.getKey());
                             jiraIssueListeners.forEach(listener -> listener.childrenRetrieved(initiative, epicQueryResult.issues));
 
                             initiativeEpicMap.put(initiative, epicQueryResult.issues.stream()
                                     .filter(issue -> issue.getIssueType().getName().equalsIgnoreCase("Epic"))
+                                    .filter(issue -> projects.contains(issue.getProject().getName()))
                                     .collect(Collectors.toList()));
                         } catch (Exception exception)
                         {
@@ -258,33 +258,60 @@ public class JiraRestClient
     /**
      * Build up a data model by pulling issues directly based on projects and assignees.
      *
-     * @param projects JIRA defining groupings of initiatives, epics, and issues.
+     * @param epicQuery The JQL text that defines the constraints of what issues to process.
      */
-    private void loadEpicsDirectly(Collection<String> projects, Collection<String> usernames)
+    private void loadEpicsDirectly(String epicQuery, Collection<String> projects)
     {
-        String projectsFilter = String.join(",", projects);
-        String projectJQL = "project in (" + projectsFilter + ")";
-
-        //TODO: Corrigan - Example epic query filter
-        //"epic link" in (XPATCH-96) OR id in (XPATCH-96)
-
-        //TODO: Corrigan - Example Sprint query filter
-        // Sprint in ("Iteration 4.1 - Dirty Dozen")
-
-        if (usernames.size() > 0)
-        {
-            projectJQL += "AND assignee in (" + String.join(",", usernames) + ")";
-        }
         try
         {
-            Issue.SearchResult epicQueryResult = searchIssues(projectJQL, "names");
-            logger.info("Successfully queried children of: {}", projectJQL);
-            epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
+            Issue.SearchResult epicQueryResult = searchIssues(epicQuery, "names");
+            logger.info("Successfully queried children of: {}", epicQueryResult);
+            epicStoryMap.putAll(getEpicStoryMap(epicQueryResult, projects));
             initiativeEpicMap.put(new EmptyIssue("Unassigned Epic"), new ArrayList<>(epicStoryMap.keySet()));
         } catch (Exception exception)
         {
             logger.warn("Failed to search issues: ", exception);
         }
+    }
+
+    private String getEpicQuery(Config config)
+    {
+        Collection<String> epics = config.getStringList("jira.filters.epics");
+
+        String query = "";
+        String epicsFilter = String.join(",", epics);
+        String labelJQL = getFilterQuery(config, "labels", "labels");
+        String sprintsJQL = getFilterQuery(config, "sprints", "sprint");
+
+        if (epics.size() > 0)
+        {
+            query = "AND (\"epic link\" in (" + epicsFilter + ") OR id in (" + epicsFilter + "))";
+        }
+
+        /*
+         * Projects should not be included in the query to avoid adding significant overhead to the process. The delay
+         * is caused by additional layers of permissions and security checks that projects queries add. Instead projects
+         * will be filtered post query before passing the data along to be used to generate a report.
+         */
+        return query + labelJQL + sprintsJQL;
+    }
+
+    private String getFilterQuery(Config config, String configKey, String jqlKey)
+    {
+        Set<String> values = getReportFilters(config, configKey);
+
+        values = values.stream().map(value -> "\"" + value + "\"").collect(Collectors.toSet());
+        return getFilterQuery(values, jqlKey);
+    }
+
+    private String getFilterQuery(Collection<String> values, String jqlKey)
+    {
+        if (values.isEmpty())
+        {
+            return "";
+        }
+
+        return " AND (" + jqlKey + " IN (" + String.join(",", values) + ") OR " + jqlKey + " IS EMPTY)";
     }
 
     /**
@@ -293,7 +320,7 @@ public class JiraRestClient
      * @param epicQueryResult The data model representation of a group of Epics.
      * @return The mapping of epics to low level tasks and stories.
      */
-    private Map<Issue, List<Issue>> getEpicStoryMap(Issue.SearchResult epicQueryResult)
+    private Map<Issue, List<Issue>> getEpicStoryMap(Issue.SearchResult epicQueryResult, Collection<String> projects)
     {
         String epicLink = fieldCustomIdMapping.get(EPIC_LINK);
 
@@ -302,6 +329,7 @@ public class JiraRestClient
 
         epicQueryResult.issues.stream()
                 .filter(issue -> issue.getField(epicLink) == null || issue.getField(epicLink) instanceof JSONNull)
+                .filter(issue -> projects.contains(issue.getProject().getName()))
                 .forEach(epic -> {
                     epicIdIssueMap.put(epic.getKey(), epic);
                     epicStoryMap.put(epic, new ArrayList<>());

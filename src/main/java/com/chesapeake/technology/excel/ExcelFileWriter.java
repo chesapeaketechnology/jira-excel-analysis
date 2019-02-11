@@ -20,7 +20,7 @@ public class ExcelFileWriter
 {
     private MasterExcelFileWriter masterExcelFileWriter;
     private TeamSummaryExcelFileWriter developerExcelFileWriter;
-    private SummaryExcelFileWriter summaryExcelFileWriter;
+    private GoalMetricsExcelFileWriter summaryExcelFileWriter;
     private XSSFWorkbook workbook;
     private boolean includeMasterReport = true;
     private boolean includeDeveloperMetrics = true;
@@ -49,7 +49,7 @@ public class ExcelFileWriter
             workbook = new XSSFWorkbook();
             masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
             developerExcelFileWriter = new TeamSummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-            summaryExcelFileWriter = new SummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            summaryExcelFileWriter = new GoalMetricsExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
         } catch (Exception exception)
         {
             logger.warn("Failed to construct workbook: ", exception);

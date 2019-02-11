@@ -44,6 +44,7 @@ class AExcelFileWriter
     CellStyle epicStyle;
     CellStyle wrapStyle;
     CellStyle urlStyle;
+    CellStyle dataFormatStyle;
 
     Map<Issue, List<Issue>> initiativeEpicMap;
     Map<Issue, List<Issue>> epicStoryMap;
@@ -173,6 +174,9 @@ class AExcelFileWriter
 
         wrapStyle = workbook.createCellStyle();
         wrapStyle.setWrapText(true);
+
+        dataFormatStyle = workbook.createCellStyle();
+        dataFormatStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
     }
 
     /**
