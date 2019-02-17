@@ -1,13 +1,18 @@
 package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.JiraRestClient;
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Field;
 import net.rcarz.jiraclient.Issue;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +40,7 @@ import java.util.stream.Collectors;
  * @author Proprietary information subject to the terms of a Non-Disclosure Agreement
  * @since 1.0.0
  */
-class AExcelFileWriter
+public class AExcelFileWriter
 {
     CreationHelper creationHelper;
 
@@ -65,6 +70,8 @@ class AExcelFileWriter
 
     Map<String, String> fieldCustomIdMap;
 
+    XSSFSheet sheet;
+
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     /**
@@ -75,7 +82,8 @@ class AExcelFileWriter
      * @param epicStoryMap      A mapping of JIRA epics to JIRA stories.
      */
     AExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
-                     Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
+                     Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap,
+                     String sheetName)
     {
         this.initiativeEpicMap = initiativeEpicMap;
         this.epicStoryMap = epicStoryMap;
@@ -86,6 +94,54 @@ class AExcelFileWriter
         completedIssues = getCompletedIssues(epicStoryMap.values());
 
         sprintStoryBreakdown = getSprintBreakdown();
+        sheet = workbook.createSheet(sheetName);
+    }
+
+    /**
+     * Checks if the value of a given {@link Cell} is empty.
+     *
+     * @param cell The {@link Cell}.
+     * @return {@code true} if the {@link Cell} is empty. {@code false}
+     * otherwise.
+     */
+    public static boolean isCellEmpty(final Cell cell)
+    {
+        if (cell == null)
+        { // use row.getCell(x, Row.CREATE_NULL_AS_BLANK) to avoid null cells
+            return true;
+        }
+
+        if (cell.getCellType() == CellType.BLANK)
+        {
+            return true;
+        }
+
+        return cell.getCellType() == CellType.STRING && cell.getStringCellValue().trim().isEmpty();
+    }
+
+    /**
+     * Gets the excel sheet.
+     *
+     * @return The excel sheet.
+     */
+    XSSFSheet getSheet()
+    {
+        return sheet;
+    }
+
+    /**
+     * Sets the default zoom when create a report.
+     *
+     * @param config The user preferences that specify the zoom.
+     */
+    void createJiraReport(Config config)
+    {
+        int defaultZoom = config.getInt("jira.sheets.zoom");
+
+        defaultZoom = Math.max(10, defaultZoom);
+        defaultZoom = Math.min(400, defaultZoom);
+
+        sheet.setZoom(defaultZoom);
     }
 
     /**
@@ -105,6 +161,13 @@ class AExcelFileWriter
         return initativeEntries;
     }
 
+    /**
+     * Gets all issues that are linked to {@code issue}.
+     *
+     * @param issue The root JIRA ticket to find descendants of.
+     * @return Gets all issues that are linked to {@code issue}. If {@code issue} is an initiative then all epics and issues
+     * that are linked to the epics will be included.
+     */
     Set<Issue> getAllNestedIssues(Issue issue)
     {
         Set<Issue> allNestedStories = new HashSet<>();
@@ -253,6 +316,26 @@ class AExcelFileWriter
         {
             logger.warn("Failed to write excel file: ", exception);
         }
+    }
+
+    /**
+     * Gets the first index of the column whose first cell value matches {@code columnName}.
+     *
+     * @param columnName The key to match.
+     * @return The first index of the column whose first cell value matches {@code columnName}.
+     */
+    int getColumnIndex(String columnName)
+    {
+        Row row = sheet.getRow(0);
+        for (int col = 0; col < row.getLastCellNum(); col++)
+        {
+            if (row.getCell(col).getStringCellValue().equalsIgnoreCase(columnName))
+            {
+                return col;
+            }
+        }
+
+        return -1;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.chesapeake.technology.excel;
 
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Issue;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.Cell;
@@ -10,8 +11,8 @@ import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFChart;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.helpers.ColumnHelper;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTAxDataSource;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTBarChart;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTBarSer;
@@ -49,7 +50,6 @@ import java.util.function.BiConsumer;
  */
 class GoalMetricsExcelFileWriter extends AExcelFileWriter
 {
-    private XSSFSheet excelSheet;
     private Map<Issue, Double> initiativeCompletions = new HashMap<>();
     private Map<Issue, Double> epicCompletions = new HashMap<>();
 
@@ -70,18 +70,32 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
     GoalMetricsExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
                                Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
     {
-        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-
-        excelSheet = workbook.createSheet("Goal Metrics");
+        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap, "Goal Metrics");
     }
 
-    void generateReport()
+    /**
+     * Writes an analysis of initiatives and epics to an excel tab.
+     *
+     * @param config The user preferences that specify the zoom.
+     */
+    void createJiraReport(Config config)
     {
+        super.createJiraReport(config);
+
         updateCompletionRates();
         writeAnaltyicsToExcel();
-        excelSheet.setDefaultColumnWidth(30);
-        excelSheet.autoSizeColumn(1);
-        excelSheet.autoSizeColumn(3);
+        sheet.setDefaultColumnWidth(30);
+        sheet.autoSizeColumn(1);
+        sheet.autoSizeColumn(3);
+
+        ColumnHelper columnHelper = sheet.getColumnHelper();
+
+        for (String columnName : config.getStringList("jira.sheets.Goal Metrics.columns.hidden"))
+        {
+            int columnIndex = getColumnIndex(columnName);
+
+            columnHelper.setColHidden(columnIndex, true);
+        }
     }
 
     /**
@@ -148,16 +162,16 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
         //put some data in the sheet
         Row row;
 
-        row = excelSheet.createRow(0);
+        row = sheet.createRow(0);
         Cell initiativeNameCell = row.createCell(INITIATIVE_NAME_COLUMN);
         Cell initiativeValueCell = row.createCell(INITIATIVE_VALUE_COLUMN);
         Cell epicNameCell = row.createCell(EPIC_NAME_COLUMN);
         Cell epicValueCell = row.createCell(EPIC_VALUE_COLUMN);
 
         initiativeNameCell.setCellValue("Initiative");
-        initiativeValueCell.setCellValue("% Complete");
+        initiativeValueCell.setCellValue("Initiative % Complete");
         epicNameCell.setCellValue("Epic");
-        epicValueCell.setCellValue("% Complete");
+        epicValueCell.setCellValue("Epic % Complete");
 
         initiativeNameCell.setCellStyle(titleStyle);
         initiativeValueCell.setCellStyle(titleStyle);
@@ -171,7 +185,7 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
             @Override
             public void accept(Issue issue, Double percentComplete)
             {
-                Row row = excelSheet.createRow(rowIndex++);
+                Row row = sheet.createRow(rowIndex++);
                 Cell nameCell = row.createCell(0);
                 Cell valueCell = row.createCell(1);
 
@@ -188,11 +202,11 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
             @Override
             public void accept(Issue issue, Double percentComplete)
             {
-                Row row = excelSheet.getRow(rowIndex++);
+                Row row = sheet.getRow(rowIndex++);
 
                 if (row == null)
                 {
-                    row = excelSheet.createRow(rowIndex - 1);
+                    row = sheet.createRow(rowIndex - 1);
                 }
                 Cell nameCell = row.createCell(2);
                 Cell valueCell = row.createCell(3);
@@ -207,19 +221,19 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
         int numInitiativeAnchorColumns = (getNextEmptyInitiativeRow() - 1) / 2 + 4;
         int numEpicAnchorColumns = (getNextEmptyEpicRow() - 1) / 2 + 4;
 
-        Drawing drawing = excelSheet.createDrawingPatriarch();
+        Drawing drawing = sheet.createDrawingPatriarch();
         ClientAnchor initiativeAnchor = drawing.createAnchor(0, 0, 0, 0, 4, 2, numInitiativeAnchorColumns, 20);
         ClientAnchor epicAnchor = drawing.createAnchor(0, 0, 0, 0, 4, 22, numEpicAnchorColumns, 42);
         XSSFChart initiativeChart = ((XSSFDrawing) drawing).createChart(initiativeAnchor);
         XSSFChart epicChart = ((XSSFDrawing) drawing).createChart(epicAnchor);
 
         //create the references to the chart data
-        CellReference firstInitiativeDataCell = new CellReference(excelSheet.getSheetName(), 0, 0, true, true);
-        CellReference lastInitativeDataCell = new CellReference(excelSheet.getSheetName(), getNextEmptyInitiativeRow() - 1, 1, true, true);
+        CellReference firstInitiativeDataCell = new CellReference(sheet.getSheetName(), 0, 0, true, true);
+        CellReference lastInitativeDataCell = new CellReference(sheet.getSheetName(), getNextEmptyInitiativeRow() - 1, 1, true, true);
 
         //create the references to the chart data
-        CellReference firstEpicDataCell = new CellReference(excelSheet.getSheetName(), 0, 2, true, true);
-        CellReference lastEpicDataCell = new CellReference(excelSheet.getSheetName(), getNextEmptyEpicRow() - 1, 3, true, true);
+        CellReference firstEpicDataCell = new CellReference(sheet.getSheetName(), 0, 2, true, true);
+        CellReference lastEpicDataCell = new CellReference(sheet.getSheetName(), getNextEmptyEpicRow() - 1, 3, true, true);
 
         addChart(initiativeChart, "Initiatives", firstInitiativeDataCell, lastInitativeDataCell);
         addChart(epicChart, "Epics", firstEpicDataCell, lastEpicDataCell);
@@ -234,7 +248,7 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
     {
         for (int i = 0; i < Integer.MAX_VALUE; i++)
         {
-            Row row = excelSheet.getRow(i);
+            Row row = sheet.getRow(i);
 
             if (row == null || row.getCell(0) == null)
             {
@@ -246,15 +260,15 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
     }
 
     /**
-     * Get the first row with an empty
+     * Gets the index of the first row whose value has not been set.
      *
-     * @return
+     * @return The index of the first row whose value has not been set.
      */
     private int getNextEmptyEpicRow()
     {
         for (int i = 0; i < Integer.MAX_VALUE; i++)
         {
-            Row row = excelSheet.getRow(i);
+            Row row = sheet.getRow(i);
 
             if (row == null || row.getCell(2) == null)
             {
@@ -265,6 +279,16 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
         return -1;
     }
 
+    /**
+     * Anchors a chart to the excel sheet.
+     *
+     * @param chart         A hollow chart to pin on to the excel sheet.
+     * @param title         The title of the chart.
+     * @param firstDataCell The cell containing the smallest row and column index that corresponds to the start
+     *                      of the data to graph.
+     * @param lastDataCell  The cell containing the largest row and column index that corresponds to the end
+     *                      of the data to graph.
+     */
     private void addChart(XSSFChart chart, String title, CellReference firstDataCell, CellReference lastDataCell)
     {
         //create a default bar chart from the data
@@ -292,9 +316,20 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
         ctBarChart.getPlotArea().getCatAxArray(0).getTitle().addNewTx().addNewRich().addNewBodyPr();
         ctBarChart.getPlotArea().getCatAxArray(0).getTitle().getTx().getRich().addNewP().addNewR().setT(title);
         chart.deleteLegend();
+        chart.setPlotOnlyVisibleCells(false);
     }
 
-    private static CTChart createDefaultBarChart(XSSFChart chart, CellReference firstDataCell, CellReference lastDataCell, boolean seriesInCols)
+    /**
+     * Anchors a chart to the excel sheet.
+     *
+     * @param chart           A hollow chart to pin on to the excel sheet.
+     * @param firstDataCell   The cell containing the smallest row and column index that corresponds to the start
+     *                        of the data to graph.
+     * @param lastDataCell    The cell containing the largest row and column index that corresponds to the end
+     *                        of the data to graph.
+     * @param seriesInColumns {@code True} if the data between {@code firstDataCell} and {@code lastDataCell} is oriented in columns.
+     */
+    private static CTChart createDefaultBarChart(XSSFChart chart, CellReference firstDataCell, CellReference lastDataCell, boolean seriesInColumns)
     {
         CTChart ctChart = chart.getCTChart();
         CTPlotArea ctPlotArea = ctChart.getPlotArea();
@@ -311,7 +346,7 @@ class GoalMetricsExcelFileWriter extends AExcelFileWriter
 
         int idx = 0;
 
-        if (seriesInCols)
+        if (seriesInColumns)
         { //the series are in the columns of the data cells
 
             for (int c = firstDataCol + 1; c < lastDataCol + 1; c++)

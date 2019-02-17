@@ -69,7 +69,7 @@ public class JiraReportGenerator
             requestClient.loadJiraIssues(config);
         } else
         {
-            logger.warn("Failed to buid jira report: please specify a configuration file");
+            logger.warn("Failed to build jira report: please specify a configuration file");
         }
     }
 }

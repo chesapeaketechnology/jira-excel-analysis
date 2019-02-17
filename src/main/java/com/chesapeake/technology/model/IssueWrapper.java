@@ -12,15 +12,15 @@ public class IssueWrapper
     private Issue issue;
     private String displayText;
 
+    /**
+     * Creates an issue wrapper.
+     *
+     * @param issue The JIRA ticket to wrap.
+     */
     public IssueWrapper(Issue issue)
     {
-        this(issue, issue.getSummary());
-    }
-
-    private IssueWrapper(Issue issue, String displayText)
-    {
         this.issue = issue;
-        this.displayText = displayText;
+        this.displayText = issue.getSummary();
     }
 
     @Override
@@ -29,13 +29,13 @@ public class IssueWrapper
         return displayText;
     }
 
+    /**
+     * Get the issue that was wrapped.
+     *
+     * @return The issue being wrapped.
+     */
     public Issue getIssue()
     {
         return issue;
-    }
-
-    public String getDisplayText()
-    {
-        return displayText;
     }
 }

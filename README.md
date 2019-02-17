@@ -17,7 +17,7 @@ Sample usage
 -----------------------------------
 Headless
 
-1. Define a configuration file specifying characteristics of your JIRA projects and any filters that you would like 
+1. Define a config file specifying characteristics of your JIRA projects and any filters that you would like 
 applied to the project.
 
 2. Build the jar using `gradlew build`
@@ -27,7 +27,7 @@ applied to the project.
     - `NEXUS_PASSWORD` - Set the value equal to the password used to login into JIRA
 
 4. Run the jar - From the command line run `java -jar {pathToConfiguration.conf}`
-    - Replace `{pathToConfiguration.conf}` with the path to your configuration file.
+    - Replace `{pathToConfiguration.conf}` with the path to your config file.
          - [Example Configuration File](src/main/resources/example.conf)
 
 

@@ -2,6 +2,7 @@ package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.JiraRestClient;
 import com.chesapeake.technology.model.StoryIssueComparator;
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Component;
 import net.rcarz.jiraclient.Issue;
 import net.rcarz.jiraclient.Version;
@@ -14,8 +15,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFHyperlink;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.helpers.ColumnHelper;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,30 +32,29 @@ import java.util.stream.Collectors;
  * @author Proprietary information subject to the terms of a Non-Disclosure Agreement
  * @since 1.0.0
  */
-class MasterExcelFileWriter extends AExcelFileWriter
+public class IssueSummaryExcelFileWriter extends AExcelFileWriter
 {
-    private XSSFSheet bigPictureSheet;
-
     private StoryIssueComparator storyIssueComparator = new StoryIssueComparator();
 
-    private static final int KEY_COLUMN = 0;
-    private static final int INITIATIVE_COLUMN = 1;
-    private static final int EPIC_COLUMN = 2;
-    private static final int PROGRAM_COLUMN = 3;
-    private static final int SPACE_COLUMN = 4;
-    private static final int SPRINT_COLUMN = 5;
-    private static final int STORY_COLUMN = 6;
-    private static final int STATUS_COLUMN = 7;
-    private static final int STORY_POINT_COLUMN = 8;
-    private static final int ISSUE_TYPE_COLUMN = 9;
-    private static final int ASSIGNEE_COLUMN = 10;
-    private static final int REPORTER_COLUMN = 11;
-    private static final int PRIORITY_COLUMN = 12;
-    private static final int LABELS_COLUMN = 13;
-    private static final int COMPONENTS_COLUMN = 14;
-    private static final int FIX_VERSION_COLUMN = 15;
-    private static final int DUE_DATE_COLUMN = 16;
-    private static final int DESCRIPTION_COLUMN = 17;
+    //TOOD: Read the order of the columns from the config file
+    public static final int KEY_COLUMN = 0;
+    public static final int INITIATIVE_COLUMN = 1;
+    public static final int EPIC_COLUMN = 2;
+    public static final int PROGRAM_COLUMN = 3;
+    public static final int SPACE_COLUMN = 4;
+    public static final int SPRINT_COLUMN = 5;
+    public static final int STORY_COLUMN = 6;
+    public static final int STATUS_COLUMN = 7;
+    public static final int STORY_POINT_COLUMN = 8;
+    public static final int ISSUE_TYPE_COLUMN = 9;
+    public static final int ASSIGNEE_COLUMN = 10;
+    public static final int REPORTER_COLUMN = 11;
+    public static final int PRIORITY_COLUMN = 12;
+    public static final int LABELS_COLUMN = 13;
+    public static final int COMPONENTS_COLUMN = 14;
+    public static final int FIX_VERSION_COLUMN = 15;
+    public static final int DUE_DATE_COLUMN = 16;
+    public static final int DESCRIPTION_COLUMN = 17;
 
     private CellStyle hiddenStyle;
 
@@ -65,12 +65,11 @@ class MasterExcelFileWriter extends AExcelFileWriter
      * @param initiativeEpicMap A decomposition of initiatives into epics.
      * @param epicStoryMap      A decomposition of epics into initiatives.
      */
-    MasterExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap, Map<Issue,
+    IssueSummaryExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap, Map<Issue,
             List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
     {
-        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap, "Issue Summary");
 
-        bigPictureSheet = workbook.createSheet("Issue Summary");
         hiddenStyle = workbook.createCellStyle();
 
         XSSFFont font = workbook.createFont();
@@ -82,12 +81,71 @@ class MasterExcelFileWriter extends AExcelFileWriter
     /**
      * Adds a summary of initiatives, epics, and user stories to an excel sheet.
      */
-    void createJIRAReport()
+    void createJiraReport(Config config)
     {
-        bigPictureSheet.setRowSumsBelow(false);
+        super.createJiraReport(config);
+
+        sheet.setRowSumsBelow(false);
 
         initializeSummaryHeaders();
 
+        writeJiraIssues();
+        writePresenceTests();
+        hideColumns(config);
+        sheet.setAutoFilter(new CellRangeAddress(0, 0, 0, DESCRIPTION_COLUMN + presenceChecks.size()));
+        fillEmptyCells();
+        setColumnWidths();
+    }
+
+    /**
+     * Set the value of all empty cells to "N/A" to simplify filtering and provide a more consistent look at the data.
+     */
+    private void fillEmptyCells()
+    {
+        for (int rowIndex = 0; rowIndex < sheet.getLastRowNum(); rowIndex++)
+        {
+            Row row = sheet.getRow(rowIndex);
+
+            for (int columnIndex = 0; columnIndex < DESCRIPTION_COLUMN; columnIndex++)
+            {
+                Cell cell = row.getCell(columnIndex);
+
+                if (cell == null)
+                {
+                    cell = row.createCell(columnIndex);
+                }
+                if (isCellEmpty(cell))
+                {
+                    cell.setCellValue("N/A");
+                }
+            }
+        }
+    }
+
+    /**
+     * Evaluates if a row was generated from an initiative or epic.
+     *
+     * @param rowIndex The index of the row to evaluate.
+     * @return {@code True} if the row was generated from an initiative; otherwise false.
+     */
+    private boolean isHeaderRow(int rowIndex)
+    {
+        Row row = sheet.getRow(rowIndex);
+
+        boolean isInitiative = row.getCell(INITIATIVE_COLUMN) != null
+                && row.getCell(INITIATIVE_COLUMN).getCellStyle().equals(initiativeStyle);
+
+        boolean isEpic = row.getCell(EPIC_COLUMN) != null
+                && row.getCell(EPIC_COLUMN).getCellStyle().equals(epicStyle);
+
+        return isInitiative || isEpic;
+    }
+
+    /**
+     * Copies the content from the active issues into an excel sheet.
+     */
+    private void writeJiraIssues()
+    {
         int row = 1;
 
         for (Map.Entry<Issue, List<Issue>> initiativeEntry : getInitativeEntriesMap())
@@ -120,7 +178,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
                                     {
                                         projectRowStart += 1;
                                     }
-                                    bigPictureSheet.groupRow(projectRowStart, row - 1);
+                                    sheet.groupRow(projectRowStart, row - 1);
                                     projectRowStart = row;
                                     project = storyIssue.getProject().getName();
 
@@ -130,19 +188,15 @@ class MasterExcelFileWriter extends AExcelFileWriter
                                 row = createFieldCells(row, storyIssue);
                             }
                         }
-                        bigPictureSheet.groupRow(projectRowStart + 1, row - 1);
+                        sheet.groupRow(projectRowStart + 1, row - 1);
                     }
 
-                    bigPictureSheet.groupRow(epicRowStart, row - 1);
+                    sheet.groupRow(epicRowStart, row - 1);
                 }
             }
 
-            bigPictureSheet.groupRow(initiativeRowStart, row - 1);
+            sheet.groupRow(initiativeRowStart, row - 1);
         }
-
-        writePresenceTests();
-        bigPictureSheet.setAutoFilter(new CellRangeAddress(0, 0, 0, DESCRIPTION_COLUMN + presenceChecks.size()));
-        setColumnWidths();
     }
 
     /**
@@ -150,27 +204,45 @@ class MasterExcelFileWriter extends AExcelFileWriter
      */
     private void writePresenceTests()
     {
-        for (int rowIndex = bigPictureSheet.getFirstRowNum(); rowIndex < bigPictureSheet.getLastRowNum(); rowIndex++)
+        for (int rowIndex = sheet.getFirstRowNum(); rowIndex < sheet.getLastRowNum(); rowIndex++)
         {
             for (int columnIndex = 0; columnIndex < presenceChecks.size(); columnIndex++)
             {
                 int columnOffset = DESCRIPTION_COLUMN + 1;
-                Row presenceRow = bigPictureSheet.getRow(rowIndex);
+                Row presenceRow = sheet.getRow(rowIndex);
                 Cell presenceCell = presenceRow.createCell(columnIndex + columnOffset);
                 Cell labelsCell = presenceRow.getCell(LABELS_COLUMN);
 
                 String label = presenceChecks.get(columnIndex);
 
-                if (rowIndex == bigPictureSheet.getFirstRowNum())
+                if (rowIndex == sheet.getFirstRowNum())
                 {
                     presenceCell.setCellValue(label);
                     presenceCell.setCellStyle(titleStyle);
                 } else
                 {
-                    boolean present = Arrays.asList(labelsCell.getStringCellValue().split(",")).contains(label);
+                    boolean present = isHeaderRow(rowIndex) || Arrays.asList(labelsCell.getStringCellValue().split(",")).contains(label);
+
                     presenceCell.setCellValue(present);
                 }
             }
+        }
+    }
+
+    /**
+     * Collapses columns based on user's preferences.
+     *
+     * @param config User defined preferences.
+     */
+    private void hideColumns(Config config)
+    {
+        ColumnHelper columnHelper = sheet.getColumnHelper();
+
+        for (String columnName : config.getStringList("jira.sheets.Issue Summary.columns.hidden"))
+        {
+            int columnIndex = getColumnIndex(columnName);
+
+            columnHelper.setColHidden(columnIndex, true);
         }
     }
 
@@ -179,17 +251,17 @@ class MasterExcelFileWriter extends AExcelFileWriter
      */
     private void setColumnWidths()
     {
-        bigPictureSheet.setDefaultColumnWidth(20);
-        bigPictureSheet.autoSizeColumn(KEY_COLUMN);
-        bigPictureSheet.setColumnWidth(INITIATIVE_COLUMN, 3000);
-        bigPictureSheet.setColumnWidth(EPIC_COLUMN, 2000);
-        bigPictureSheet.autoSizeColumn(PROGRAM_COLUMN);
-        bigPictureSheet.autoSizeColumn(SPACE_COLUMN);
-        bigPictureSheet.autoSizeColumn(SPRINT_COLUMN);
-        bigPictureSheet.autoSizeColumn(STORY_COLUMN);
-        bigPictureSheet.autoSizeColumn(STATUS_COLUMN);
-        bigPictureSheet.autoSizeColumn(STORY_POINT_COLUMN);
-        bigPictureSheet.setColumnWidth(DESCRIPTION_COLUMN, 30000);
+        sheet.setDefaultColumnWidth(20);
+        sheet.autoSizeColumn(KEY_COLUMN);
+        sheet.setColumnWidth(INITIATIVE_COLUMN, 3000);
+        sheet.setColumnWidth(EPIC_COLUMN, 2000);
+        sheet.autoSizeColumn(PROGRAM_COLUMN);
+        sheet.autoSizeColumn(SPACE_COLUMN);
+        sheet.autoSizeColumn(SPRINT_COLUMN);
+        sheet.autoSizeColumn(STORY_COLUMN);
+        sheet.autoSizeColumn(STATUS_COLUMN);
+        sheet.autoSizeColumn(STORY_POINT_COLUMN);
+        sheet.setColumnWidth(DESCRIPTION_COLUMN, 30000);
     }
 
     /**
@@ -197,7 +269,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
      */
     private void initializeSummaryHeaders()
     {
-        Row titleRow = bigPictureSheet.createRow(0);
+        Row titleRow = sheet.createRow(0);
         Cell keyCell = titleRow.createCell(KEY_COLUMN);
         Cell initiativeCell = titleRow.createCell(INITIATIVE_COLUMN);
         Cell programCell = titleRow.createCell(PROGRAM_COLUMN);
@@ -270,13 +342,13 @@ class MasterExcelFileWriter extends AExcelFileWriter
      */
     private int createHeaderCell(int row, int column, CellStyle cellStyle, Issue issue)
     {
-        Row excelRow = bigPictureSheet.createRow(row++);
+        createFieldCells(row, issue);
+        Row excelRow = sheet.getRow(row);
+
         Cell excelCell = excelRow.createCell(column);
 
         excelCell.setCellStyle(cellStyle);
         excelCell.setCellValue(issue.getSummary());
-
-        configureCommonCells(excelRow, issue, false);
 
         for (int columnToStyle = column + 1; columnToStyle <= DESCRIPTION_COLUMN; columnToStyle++)
         {
@@ -290,7 +362,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
             cellToStyle.setCellStyle(cellStyle);
         }
 
-        return row;
+        return row + 1;
     }
 
     /**
@@ -305,7 +377,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
         Cell keyCell = excelRow.createCell(KEY_COLUMN);
         Cell statusCell = excelRow.createCell(STATUS_COLUMN);
 
-        Row previousRow = bigPictureSheet.getRow(excelRow.getRowNum() - 1);
+        Row previousRow = sheet.getRow(excelRow.getRowNum() - 1);
 
         if (previousRow != null)
         {
@@ -348,7 +420,7 @@ class MasterExcelFileWriter extends AExcelFileWriter
      */
     private int createFieldCells(int row, Issue storyIssue)
     {
-        Row excelRow = bigPictureSheet.createRow(row++);
+        Row excelRow = sheet.createRow(row++);
 
         Cell programCell = excelRow.createCell(PROGRAM_COLUMN);
         Cell projectCell = excelRow.createCell(SPACE_COLUMN);

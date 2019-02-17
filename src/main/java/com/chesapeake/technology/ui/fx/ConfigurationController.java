@@ -187,14 +187,15 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
 
             ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-            excelFileWriter.setIncludeMasterReport(masterCheckBox.isSelected());
-            excelFileWriter.setIncludeDeveloperMetrics(developerMetricsCheckBox.isSelected());
-            excelFileWriter.setIncludeSummaryMetrics(summaryCheckBox.isSelected());
+            //TODO: Pass these settings through a Config object
+//            excelFileWriter.setIncludeMasterReport(masterCheckBox.isSelected());
+//            excelFileWriter.setIncludeDeveloperMetrics(developerMetricsCheckBox.isSelected());
+//            excelFileWriter.setIncludeSummaryMetrics(summaryCheckBox.isSelected());
 
             logger.info("Setting active excel data");
             excelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
 
-            excelFileWriter.createJIRAReport();
+            excelFileWriter.createJIRAReport(ConfigFactory.defaultApplication());
 
             updateUserPreferences();
         } catch (Exception exception)
@@ -203,6 +204,13 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
         }
     }
 
+    /**
+     * Set the credentials used to authenticate with JIRA.
+     *
+     * @param username The unique identifier of the user.
+     * @param password The key used to verify the user's identity.
+     * @throws JiraException If the username / password combination is incorrect.
+     */
     void setCredentials(String username, String password) throws JiraException
     {
         this.username = username;

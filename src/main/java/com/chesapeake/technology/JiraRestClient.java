@@ -59,6 +59,7 @@ public class JiraRestClient
 
     private EmptyIssue unassignedEpic = new EmptyIssue("Unassigned Epic");
 
+    private Map<String, Integer> retryCount = new ConcurrentHashMap<>();
     private static Map<String, String> fieldCustomIdMapping = new HashMap<>();
 
     private static Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -382,7 +383,23 @@ public class JiraRestClient
                 "issues, labels, assignee, assignee, reporter, priority, fixVersions, duedate, components, description," +
                 storyPointCustomField + ", " + sprintKeyCustomField + ", " + epicCustomField + ", " + programCustomField;
 
-        return jiraClient.searchIssues(query, includedFields, expandFields, 10_000, 0);
+        try
+        {
+            return jiraClient.searchIssues(query, includedFields, expandFields, 10_000, 0);
+        } catch (Exception exception)
+        {
+            int count = retryCount.getOrDefault(query, 0) + 1;
+
+            if (count < 3)
+            {
+                retryCount.put(query, count);
+                logger.info("Attempting to requery: {}", query + " after failure");
+
+                return searchIssues(query, expandFields);
+            }
+
+            throw new JiraException(exception.getMessage());
+        }
     }
 
     /**

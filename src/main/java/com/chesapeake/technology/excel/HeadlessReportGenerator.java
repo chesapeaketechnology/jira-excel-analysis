@@ -9,9 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.invoke.MethodHandles;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,13 +22,18 @@ import java.util.stream.Collectors;
  */
 public class HeadlessReportGenerator implements IJiraIssueListener
 {
-    private Config configuration;
+    private Config config;
 
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    public HeadlessReportGenerator(Config configuration)
+    /**
+     * Creates a report generator that can be run from a headless environment.
+     *
+     * @param config User preferences.
+     */
+    HeadlessReportGenerator(Config config)
     {
-        this.configuration = configuration;
+        this.config = config;
     }
 
     @Override
@@ -53,14 +56,16 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
         File directory = new File("reports/");
 
-        if(configuration.getBoolean("jira.removeOldReports"))
+        if (config.getBoolean("jira.removeOldReports"))
         {
             deleteOldReports(directory);
         }
 
-        configuration.getConfigList("jira.reports").forEach(config -> {
-            String fileName = config.getString("fileName");
-            Collection<String> labels = config.getStringList("filters.labels");
+        config.getConfigList("jira.reports").forEach(nestedConfiguration -> {
+            String fileName = nestedConfiguration.getString("fileName");
+            Collection<String> labels = nestedConfiguration.getStringList("filters.labels");
+            List<String> presenceChecks = nestedConfiguration.getStringList("presence.labels");
+            List<String> sprints = nestedConfiguration.getStringList("filters.sprints");
 
             try
             {
@@ -68,26 +73,56 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
                 ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-                List<Issue> activeEpics = epicStoryMap.keySet().stream().filter(epic -> epic.getLabels().containsAll(labels)).collect(Collectors.toList());
-                List<Issue> finalActiveEpics = activeEpics;
-                List<Issue> activeInitiatives = initiativeEpicMap.entrySet().stream()
-                        .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(finalActiveEpics::contains))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
+                Collection<Issue> activeEpics = getActiveEpics(epicStoryMap);
+                Collection<Issue> activeInitiatives = getActiveInitiatives(initiativeEpicMap, activeEpics);
 
-                if (labels.contains("Unassigned"))
-                {
-                    activeInitiatives = new ArrayList<>();
-                    activeEpics = Collections.emptyList();
-                }
-                excelFileWriter.setActiveData(activeInitiatives, activeEpics, Collections.emptyList(), labels, Collections.emptyList());
+                excelFileWriter.setActiveData(activeInitiatives, activeEpics, sprints, labels, presenceChecks);
                 excelFileWriter.setFileName(fileName);
-                excelFileWriter.createJIRAReport();
+                excelFileWriter.createJIRAReport(config);
             } catch (Exception exception)
             {
-                exception.printStackTrace();
+                logger.warn("Failed to write excel file: ", exception);
             }
         });
+    }
+
+    /**
+     * Gets the initiatives that match the user's filters.
+     *
+     * @param initiativeEpicMap Mapping from Initiative JIRA tickets to Epic JIRA tickets.
+     * @param activeEpics       Epics that have been filtered.
+     * @return The initiatives that match the user's filters.
+     */
+    private Collection<Issue> getActiveInitiatives(Map<Issue, List<Issue>> initiativeEpicMap, Collection<Issue> activeEpics)
+    {
+        Collection<Issue> activeInitiatives = initiativeEpicMap.keySet();
+
+        boolean includeAllInitiatives = config.getBoolean("jira.filters.hideEmptyGroups");
+
+        if (!includeAllInitiatives)
+        {
+            activeInitiatives = initiativeEpicMap.entrySet().stream()
+                    .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(activeEpics::contains))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+        }
+
+        return activeInitiatives;
+    }
+
+    /**
+     * Gets the epics that match the user's filters.
+     *
+     * @param epicStoryMap Mapping from Epic JIRA tickets to Story JIRA tickets.
+     * @return The epics that match the user's filters.
+     */
+    private Collection<Issue> getActiveEpics(Map<Issue, List<Issue>> epicStoryMap)
+    {
+        boolean includeAllInitiatives = config.getBoolean("jira.filters.hideEmptyGroups");
+
+        return epicStoryMap.keySet().stream()
+                .filter(epic -> includeAllInitiatives || epicStoryMap.get(epic).size() > 0)
+                .collect(Collectors.toList());
     }
 
     /**

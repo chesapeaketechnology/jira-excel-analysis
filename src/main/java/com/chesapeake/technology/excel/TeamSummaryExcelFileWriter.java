@@ -1,6 +1,7 @@
 package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.JiraRestClient;
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Issue;
 import net.rcarz.jiraclient.User;
 import org.apache.poi.ss.usermodel.Cell;
@@ -18,8 +19,8 @@ import org.apache.poi.xddf.usermodel.chart.XDDFNumericalDataSource;
 import org.apache.poi.xddf.usermodel.chart.XDDFValueAxis;
 import org.apache.poi.xssf.usermodel.XSSFChart;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.helpers.ColumnHelper;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTBoolean;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTLineSer;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTMarker;
@@ -61,7 +62,6 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
     private static final int POINTS_ADDED_COLUMN = 4;
     private static final int AVERAGE_TICKET_SIZE_COLUMN = 5;
 
-    private XSSFSheet developerSheet;
     private SimpleDateFormat jiraDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -76,26 +76,35 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
     TeamSummaryExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
                                Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
     {
-        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-
-        developerSheet = workbook.createSheet("Team Metrics");
+        super(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap, "Team Metrics");
     }
 
     /**
      * Adds metadata about developers jira ticket loads and completion rates across multiple sprints.
      */
-    void createJIRAReport()
+    void createJiraReport(Config config)
     {
-        developerSheet.setRowSumsBelow(false);
+        super.createJiraReport(config);
+
+        sheet.setRowSumsBelow(false);
 
         configureDeveloperSheet();
 
-        developerSheet.autoSizeColumn(DEVELOPER_COLUMN);
-        developerSheet.autoSizeColumn(SPRINT_COLUMN);
-        developerSheet.autoSizeColumn(SPRINT_COMMITMENT_COLUMN, true);
-        developerSheet.autoSizeColumn(COMPLETED_POINTS_COLUMN, true);
-        developerSheet.autoSizeColumn(POINTS_ADDED_COLUMN, true);
-        developerSheet.autoSizeColumn(AVERAGE_TICKET_SIZE_COLUMN, true);
+        sheet.autoSizeColumn(DEVELOPER_COLUMN);
+        sheet.autoSizeColumn(SPRINT_COLUMN);
+        sheet.autoSizeColumn(SPRINT_COMMITMENT_COLUMN, true);
+        sheet.autoSizeColumn(COMPLETED_POINTS_COLUMN, true);
+        sheet.autoSizeColumn(POINTS_ADDED_COLUMN, true);
+        sheet.autoSizeColumn(AVERAGE_TICKET_SIZE_COLUMN, true);
+
+        ColumnHelper columnHelper = sheet.getColumnHelper();
+
+        for (String columnName : config.getStringList("jira.sheets.Team Metrics.columns.hidden"))
+        {
+            int columnIndex = getColumnIndex(columnName);
+
+            columnHelper.setColHidden(columnIndex, true);
+        }
     }
 
     /**
@@ -103,7 +112,7 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
      */
     private void addDeveloperHeaders()
     {
-        Row titleRow = developerSheet.createRow(0);
+        Row titleRow = sheet.createRow(0);
         Cell userCell = titleRow.createCell(DEVELOPER_COLUMN);
         Cell sprintCell = titleRow.createCell(SPRINT_COLUMN);
         Cell sprintCommitmentCell = titleRow.createCell(SPRINT_COMMITMENT_COLUMN);
@@ -142,7 +151,7 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
         for (String username : getUsernames())
         {
             int startingRow = row;
-            Row excelRow = developerSheet.createRow(row);
+            Row excelRow = sheet.createRow(row);
 
             excelRow.createCell(DEVELOPER_COLUMN).setCellValue(username);
             deltas.clear();
@@ -155,9 +164,9 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
 
                     if (filteredIssues.size() > 0)
                     {
-                        if (developerSheet.getRow(row) == null)
+                        if (sheet.getRow(row) == null)
                         {
-                            excelRow = developerSheet.createRow(row++);
+                            excelRow = sheet.createRow(row++);
                         } else
                         {
                             row++;
@@ -189,7 +198,7 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
                 }
             }
 
-            if (developerSheet.getLastRowNum() > 1)
+            if (sheet.getLastRowNum() > 1)
             {
                 generateLineChart(startingRow, deltas.toArray(new Integer[0]));
             }
@@ -252,7 +261,7 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
      */
     private void generateLineChart(int dataStartingRow, Integer[] deltas)
     {
-        XSSFDrawing drawing = developerSheet.createDrawingPatriarch();
+        XSSFDrawing drawing = sheet.createDrawingPatriarch();
         ClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, AVERAGE_TICKET_SIZE_COLUMN + 2, dataStartingRow,
                 AVERAGE_TICKET_SIZE_COLUMN + 15, dataStartingRow + 19);
 
@@ -267,13 +276,13 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
 
         valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
 
-        XDDFNumericalDataSource sprintDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), SPRINT_COLUMN, SPRINT_COLUMN));
+        XDDFNumericalDataSource sprintDataSource = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                new CellRangeAddress(dataStartingRow, sheet.getLastRowNum(), SPRINT_COLUMN, SPRINT_COLUMN));
         XDDFNumericalDataSource<Integer> deltaDataSource = XDDFDataSourcesFactory.fromArray(deltas, null);
-        XDDFNumericalDataSource<Double> completedDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), COMPLETED_POINTS_COLUMN, COMPLETED_POINTS_COLUMN));
-        XDDFNumericalDataSource<Double> commitmentDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), SPRINT_COMMITMENT_COLUMN, SPRINT_COMMITMENT_COLUMN));
+        XDDFNumericalDataSource<Double> completedDataSource = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                new CellRangeAddress(dataStartingRow, sheet.getLastRowNum(), COMPLETED_POINTS_COLUMN, COMPLETED_POINTS_COLUMN));
+        XDDFNumericalDataSource<Double> commitmentDataSource = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
+                new CellRangeAddress(dataStartingRow, sheet.getLastRowNum(), SPRINT_COMMITMENT_COLUMN, SPRINT_COMMITMENT_COLUMN));
 
         XDDFChartData.Series deltaSeries = chartData.addSeries(sprintDataSource, deltaDataSource);
         XDDFChartData.Series completedSeries = chartData.addSeries(sprintDataSource, completedDataSource);
@@ -306,6 +315,8 @@ class TeamSummaryExcelFileWriter extends AExcelFileWriter
         {
             ser.setMarker(ctMarker);
         }
+
+        chart.setPlotOnlyVisibleCells(false);
     }
 
     /**
