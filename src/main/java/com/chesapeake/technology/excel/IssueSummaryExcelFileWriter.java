@@ -87,8 +87,8 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
 
         boolean wrapText = (config.getBoolean("jira.sheets.Issue Summary.wrapText"));
 
-        initiativePercentStyle.setWrapText(wrapText);
-        epicPercentStyle.setWrapText(wrapText);
+        initiativePercentStyle.setWrapText(false);
+        epicPercentStyle.setWrapText(false);
         wrapStyle.setWrapText(wrapText);
 
         sheet.setRowSumsBelow(false);
@@ -264,12 +264,9 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
         sheet.autoSizeColumn(PROGRAM_COLUMN);
         sheet.autoSizeColumn(SPACE_COLUMN);
         sheet.autoSizeColumn(SPRINT_COLUMN);
-        sheet.autoSizeColumn(STORY_COLUMN);
         sheet.autoSizeColumn(STATUS_COLUMN);
         sheet.autoSizeColumn(STORY_POINT_COLUMN);
         sheet.autoSizeColumn(ISSUE_TYPE_COLUMN);
-        sheet.autoSizeColumn(COMPONENTS_COLUMN);
-        sheet.autoSizeColumn(FIX_VERSION_COLUMN);
         sheet.autoSizeColumn(PRIORITY_COLUMN);
         sheet.setColumnWidth(DESCRIPTION_COLUMN, 30000);
     }
