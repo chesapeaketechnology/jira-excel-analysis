@@ -156,52 +156,55 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
 
         for (Map.Entry<Issue, List<Issue>> initiativeEntry : getInitativeEntriesMap())
         {
-            row = createHeaderCell(baseUrl, row, INITIATIVE_COLUMN, initiativePercentStyle, initiativeDateStyle, initiativeEntry.getKey());
-            int initiativeRowStart = row;
-
-            for (Issue epicIssue : initiativeEntry.getValue())
+            if (activeInitiatives.isEmpty() || activeInitiatives.contains(initiativeEntry.getKey()))
             {
-                if (activeEpics.isEmpty() || activeEpics.contains(epicIssue))
+                row = createHeaderCell(baseUrl, row, INITIATIVE_COLUMN, initiativePercentStyle, initiativeDateStyle, initiativeEntry.getKey());
+                int initiativeRowStart = row;
+
+                for (Issue epicIssue : initiativeEntry.getValue())
                 {
-                    row = createHeaderCell(baseUrl, row, EPIC_COLUMN, epicPercentStyle, epicDateStyle, epicIssue);
-                    int epicRowStart = row;
-
-                    List<Issue> sortedStories = getSortedStories(epicIssue);
-
-                    if (sortedStories.size() > 0)
+                    if (activeEpics.isEmpty() || activeEpics.contains(epicIssue))
                     {
-                        int projectRowStart = row + 1;
-                        boolean first = true;
-                        String project = sortedStories.get(0).getProject().getName();
+                        row = createHeaderCell(baseUrl, row, EPIC_COLUMN, epicPercentStyle, epicDateStyle, epicIssue);
+                        int epicRowStart = row;
 
-                        for (Issue storyIssue : sortedStories)
+                        List<Issue> sortedStories = getSortedStories(epicIssue);
+
+                        if (sortedStories.size() > 0)
                         {
-                            if (containsLabel(storyIssue, activeLabels) && containsSprint(storyIssue, activeSprints))
+                            int projectRowStart = row + 1;
+                            boolean first = true;
+                            String project = sortedStories.get(0).getProject().getName();
+
+                            for (Issue storyIssue : sortedStories)
                             {
-                                if (!storyIssue.getProject().getName().equals(project))
+                                if (containsLabel(storyIssue, activeLabels) && containsSprint(storyIssue, activeSprints))
                                 {
-                                    if (!first)
+                                    if (!storyIssue.getProject().getName().equals(project))
                                     {
-                                        projectRowStart += 1;
+                                        if (!first)
+                                        {
+                                            projectRowStart += 1;
+                                        }
+                                        sheet.groupRow(projectRowStart, row - 1);
+                                        projectRowStart = row;
+                                        project = storyIssue.getProject().getName();
+
+                                        first = false;
                                     }
-                                    sheet.groupRow(projectRowStart, row - 1);
-                                    projectRowStart = row;
-                                    project = storyIssue.getProject().getName();
 
-                                    first = false;
+                                    row = createFieldCells(baseUrl, row, storyIssue);
                                 }
-
-                                row = createFieldCells(baseUrl, row, storyIssue);
                             }
+                            sheet.groupRow(projectRowStart + 1, row - 1);
                         }
-                        sheet.groupRow(projectRowStart + 1, row - 1);
+
+                        sheet.groupRow(epicRowStart, row - 1);
                     }
-
-                    sheet.groupRow(epicRowStart, row - 1);
                 }
-            }
 
-            sheet.groupRow(initiativeRowStart, row - 1);
+                sheet.groupRow(initiativeRowStart, row - 1);
+            }
         }
     }
 

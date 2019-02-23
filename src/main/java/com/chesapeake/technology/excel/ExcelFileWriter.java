@@ -189,14 +189,10 @@ public class ExcelFileWriter
      */
     private Collection<Issue> getFilteredActiveInitiatives(Map<Issue, List<Issue>> initiativeEpicMap, Collection<Issue> activeEpics)
     {
-        Collection<Issue> activeInitiatives = initiativeEpicMap.keySet();
-
-        activeInitiatives = initiativeEpicMap.entrySet().stream()
+        return initiativeEpicMap.entrySet().stream()
                 .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(activeEpics::contains))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
-
-        return activeInitiatives;
     }
 
     /**
@@ -208,7 +204,20 @@ public class ExcelFileWriter
     private Collection<Issue> getFilteredActiveEpics(Map<Issue, List<Issue>> epicStoryMap)
     {
         return epicStoryMap.keySet().stream()
-                .filter(epic -> epicStoryMap.get(epic).size() > 0)
+                .filter(epic -> epicStoryMap.get(epic).stream()
+                        .anyMatch(issue -> containsLabel(issue, issueSummaryExcelFileWriter.activeLabels)))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Evaluates if a JIRA issue contains any of a series of labels.
+     *
+     * @param issue  The issue to check for the presence of labels in.
+     * @param labels The JIRA issue identification tags to check for the presence of within an issue.
+     * @return True if {@code issue} contains any issues with {@code labels}.
+     */
+    boolean containsLabel(Issue issue, Collection<String> labels)
+    {
+        return labels.isEmpty() || issue.getLabels().stream().anyMatch(labels::contains);
     }
 }
