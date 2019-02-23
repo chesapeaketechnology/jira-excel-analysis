@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.invoke.MethodHandles;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -63,15 +64,16 @@ public class HeadlessReportGenerator implements IJiraIssueListener
         config.getConfigList("jira.reports").forEach(nestedConfiguration -> {
             String fileName = nestedConfiguration.getString("fileName");
             Collection<String> labels = nestedConfiguration.getStringList("filters.labels");
-            List<String> presenceChecks = nestedConfiguration.getStringList("presence.labels");
-            List<String> sprints = nestedConfiguration.getStringList("filters.sprints");
+            List<String> presenceChecks = nestedConfiguration.hasPath("presence.labels") ? new ArrayList<>()
+                    : nestedConfiguration.getStringList("presence.labels");
+            List<String> sprints = nestedConfiguration.hasPath("filters.sprints") ? new ArrayList<>() :
+                    nestedConfiguration.getStringList("filters.sprints");
 
             try
             {
                 logger.info("Generating report for: {}", fileName);
 
                 ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-
 
                 excelFileWriter.setActiveData(initiativeEpicMap.keySet(), epicStoryMap.keySet(), sprints, labels, presenceChecks);
                 excelFileWriter.setFileName(fileName);
