@@ -9,12 +9,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.invoke.MethodHandles;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Used to generate pre configured reports. To enable the user to create a custom report
@@ -24,13 +21,18 @@ import java.util.stream.Collectors;
  */
 public class HeadlessReportGenerator implements IJiraIssueListener
 {
-    private Config headlessPreferences;
+    private Config config;
 
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    public HeadlessReportGenerator(Config headlessPreferences)
+    /**
+     * Creates a report generator that can be run from a headless environment.
+     *
+     * @param config User preferences.
+     */
+    HeadlessReportGenerator(Config config)
     {
-        this.headlessPreferences = headlessPreferences;
+        this.config = config;
     }
 
     @Override
@@ -53,11 +55,16 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
         File directory = new File("reports/");
 
-        deleteOldReports(directory);
+        if (config.getBoolean("jira.removeOldReports"))
+        {
+            deleteOldReports(directory);
+        }
 
-        headlessPreferences.getObject("jira-excel-analysis").toConfig().getConfigList("reports").forEach(config -> {
-            String fileName = config.getString("fileName");
-            Collection<String> labels = config.getStringList("labelFilters");
+        config.getConfigList("jira.reports").forEach(nestedConfiguration -> {
+            String fileName = nestedConfiguration.getString("fileName");
+            Collection<String> labels = nestedConfiguration.getStringList("filters.labels");
+            List<String> presenceChecks = nestedConfiguration.getStringList("presence.labels");
+            List<String> sprints = nestedConfiguration.getStringList("filters.sprints");
 
             try
             {
@@ -65,24 +72,13 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
                 ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-                List<Issue> activeEpics = epicStoryMap.keySet().stream().filter(epic -> epic.getLabels().containsAll(labels)).collect(Collectors.toList());
-                List<Issue> finalActiveEpics = activeEpics;
-                List<Issue> activeInitiatives = initiativeEpicMap.entrySet().stream()
-                        .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(finalActiveEpics::contains))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
 
-                if (labels.contains("Unassigned"))
-                {
-                    activeInitiatives = new ArrayList<>();
-                    activeEpics = Collections.emptyList();
-                }
-                excelFileWriter.setActiveData(activeInitiatives, activeEpics, Collections.emptyList(), labels, Collections.emptyList());
+                excelFileWriter.setActiveData(initiativeEpicMap.keySet(), epicStoryMap.keySet(), sprints, labels, presenceChecks);
                 excelFileWriter.setFileName(fileName);
-                excelFileWriter.createJIRAReport();
+                excelFileWriter.createJIRAReport(config);
             } catch (Exception exception)
             {
-                exception.printStackTrace();
+                logger.warn("Failed to write excel file: ", exception);
             }
         });
     }

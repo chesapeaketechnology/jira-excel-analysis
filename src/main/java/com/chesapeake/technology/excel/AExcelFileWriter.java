@@ -1,13 +1,20 @@
 package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.JiraRestClient;
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Field;
 import net.rcarz.jiraclient.Issue;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CreationHelper;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.util.DateFormatConverter;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +30,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -35,15 +43,19 @@ import java.util.stream.Collectors;
  * @author Proprietary information subject to the terms of a Non-Disclosure Agreement
  * @since 1.0.0
  */
-class AExcelFileWriter
+public class AExcelFileWriter
 {
     CreationHelper creationHelper;
 
     CellStyle titleStyle;
-    CellStyle initiativeStyle;
-    CellStyle epicStyle;
+    CellStyle initiativePercentStyle;
+    CellStyle epicPercentStyle;
+    CellStyle initiativeDateStyle;
+    CellStyle epicDateStyle;
     CellStyle wrapStyle;
     CellStyle urlStyle;
+    CellStyle dataFormatStyle;
+    CellStyle dateFormatStyle;
 
     Map<Issue, List<Issue>> initiativeEpicMap;
     Map<Issue, List<Issue>> epicStoryMap;
@@ -64,6 +76,8 @@ class AExcelFileWriter
 
     Map<String, String> fieldCustomIdMap;
 
+    XSSFSheet sheet;
+
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     /**
@@ -74,7 +88,8 @@ class AExcelFileWriter
      * @param epicStoryMap      A mapping of JIRA epics to JIRA stories.
      */
     AExcelFileWriter(XSSFWorkbook workbook, Map<Issue, List<Issue>> initiativeEpicMap,
-                     Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap)
+                     Map<Issue, List<Issue>> epicStoryMap, Map<String, String> fieldCustomIdMap,
+                     String sheetName)
     {
         this.initiativeEpicMap = initiativeEpicMap;
         this.epicStoryMap = epicStoryMap;
@@ -85,6 +100,54 @@ class AExcelFileWriter
         completedIssues = getCompletedIssues(epicStoryMap.values());
 
         sprintStoryBreakdown = getSprintBreakdown();
+        sheet = workbook.createSheet(sheetName);
+    }
+
+    /**
+     * Checks if the value of a given {@link Cell} is empty.
+     *
+     * @param cell The {@link Cell}.
+     * @return {@code true} if the {@link Cell} is empty. {@code false}
+     * otherwise.
+     */
+    public static boolean isCellEmpty(final Cell cell)
+    {
+        if (cell == null)
+        { // use row.getCell(x, Row.CREATE_NULL_AS_BLANK) to avoid null cells
+            return true;
+        }
+
+        if (cell.getCellType() == CellType.BLANK)
+        {
+            return true;
+        }
+
+        return cell.getCellType() == CellType.STRING && cell.getStringCellValue().trim().isEmpty();
+    }
+
+    /**
+     * Gets the excel sheet.
+     *
+     * @return The excel sheet.
+     */
+    XSSFSheet getSheet()
+    {
+        return sheet;
+    }
+
+    /**
+     * Sets the default zoom when create a report.
+     *
+     * @param config The user preferences that specify the zoom.
+     */
+    void createJiraReport(Config config)
+    {
+        int defaultZoom = config.getInt("jira.sheets.zoom");
+
+        defaultZoom = Math.max(10, defaultZoom);
+        defaultZoom = Math.min(400, defaultZoom);
+
+        sheet.setZoom(defaultZoom);
     }
 
     /**
@@ -104,6 +167,13 @@ class AExcelFileWriter
         return initativeEntries;
     }
 
+    /**
+     * Gets all issues that are linked to {@code issue}.
+     *
+     * @param issue The root JIRA ticket to find descendants of.
+     * @return Gets all issues that are linked to {@code issue}. If {@code issue} is an initiative then all epics and issues
+     * that are linked to the epics will be included.
+     */
     Set<Issue> getAllNestedIssues(Issue issue)
     {
         Set<Issue> allNestedStories = new HashSet<>();
@@ -142,28 +212,28 @@ class AExcelFileWriter
      */
     private void initializeWorkbook()
     {
-        titleStyle = workbook.createCellStyle();
-        creationHelper = workbook.getCreationHelper();
-
         Font headerFont = workbook.createFont();
+        String dateFormatPattern = DateFormatConverter.convert(Locale.getDefault(), "dd MMMM, yyyy");
+        DataFormat poiFormat = workbook.createDataFormat();
+        short percentFormat = workbook.createDataFormat().getFormat("0.0%");
+        short dateFormat = poiFormat.getFormat(dateFormatPattern);
+        creationHelper = workbook.getCreationHelper();
 
         headerFont.setBold(true);
         headerFont.setFontHeightInPoints((short) 12);
+
+        titleStyle = workbook.createCellStyle();
         titleStyle.setFont(headerFont);
         titleStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
         titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-        initiativeStyle = workbook.createCellStyle();
-        initiativeStyle.setFont(headerFont);
-        initiativeStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
-        initiativeStyle.setFillForegroundColor(IndexedColors.LAVENDER.getIndex());
-        initiativeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        initiativePercentStyle = createHeaderPercentStyle(headerFont, percentFormat, IndexedColors.LAVENDER.getIndex());
+        initiativePercentStyle.setWrapText(true);
+        initiativeDateStyle = createHeaderPercentStyle(headerFont, dateFormat, IndexedColors.LAVENDER.getIndex());
 
-        epicStyle = workbook.createCellStyle();
-        epicStyle.setFont(headerFont);
-        epicStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
-        epicStyle.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
-        epicStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        epicPercentStyle = createHeaderPercentStyle(headerFont, percentFormat, IndexedColors.LIGHT_TURQUOISE.getIndex());
+        epicPercentStyle.setWrapText(true);
+        epicDateStyle = createHeaderPercentStyle(headerFont, dateFormat, IndexedColors.LIGHT_TURQUOISE.getIndex());
 
         urlStyle = workbook.createCellStyle();
         Font urlFont = workbook.createFont();
@@ -173,6 +243,12 @@ class AExcelFileWriter
 
         wrapStyle = workbook.createCellStyle();
         wrapStyle.setWrapText(true);
+
+        dataFormatStyle = workbook.createCellStyle();
+        dataFormatStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
+
+        dateFormatStyle = workbook.createCellStyle();
+        dateFormatStyle.setDataFormat(dateFormat);
     }
 
     /**
@@ -180,19 +256,47 @@ class AExcelFileWriter
      * will be applied to find the interesection of the set of elements that match.
      *
      * @param activeInitiatives The JIRA initiatives that should be included in reports.
-     * @param activeEpics       The JIRA epics that should be included in reports.
-     * @param activeSprints     The JIRA sprints that should be included in reports.
-     * @param activeLabels      The JIRA labels that should be included in reports.
-     * @param presenceChecks    The JIRA labels that should be checked for presence.
      */
-    void setActiveData(Collection<Issue> activeInitiatives, Collection<Issue> activeEpics,
-                       Collection<String> activeSprints, Collection<String> activeLabels,
-                       List<String> presenceChecks)
+    void setActiveInitiatives(Collection<Issue> activeInitiatives)
     {
         this.activeInitiatives = activeInitiatives;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeEpics The JIRA epics that should be included in reports.
+     */
+    void setActiveEpics(Collection<Issue> activeEpics)
+    {
         this.activeEpics = activeEpics;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeSprints The JIRA sprints that should be included in reports.
+     */
+    void setActiveSprints(Collection<String> activeSprints)
+    {
         this.activeSprints = activeSprints;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeLabels The JIRA labels that should be included in reports.
+     */
+    void setActiveLabels(Collection<String> activeLabels)
+    {
         this.activeLabels = activeLabels;
+    }
+
+    void setPresenceChecks(List<String> presenceChecks)
+    {
         this.presenceChecks = presenceChecks;
     }
 
@@ -252,6 +356,26 @@ class AExcelFileWriter
     }
 
     /**
+     * Gets the first index of the column whose first cell value matches {@code columnName}.
+     *
+     * @param columnName The key to match.
+     * @return The first index of the column whose first cell value matches {@code columnName}.
+     */
+    int getColumnIndex(String columnName)
+    {
+        Row row = sheet.getRow(0);
+        for (int col = 0; col < row.getLastCellNum(); col++)
+        {
+            if (row.getCell(col).getStringCellValue().equalsIgnoreCase(columnName))
+            {
+                return col;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
      * Gets a mapping of sprint names to their corresponding issues.
      *
      * @return A mapping of sprint names to their corresponding issues.
@@ -286,5 +410,17 @@ class AExcelFileWriter
         });
 
         return sprintStoryBreakdown;
+    }
+
+    private CellStyle createHeaderPercentStyle(Font headerFont, short dataFormat, short foregroundColor)
+    {
+        CellStyle headerStyle = workbook.createCellStyle();
+
+        headerStyle.setFont(headerFont);
+        headerStyle.setDataFormat(dataFormat);
+        headerStyle.setFillForegroundColor(foregroundColor);
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        return headerStyle;
     }
 }

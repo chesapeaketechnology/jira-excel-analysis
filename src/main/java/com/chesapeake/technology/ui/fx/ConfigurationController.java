@@ -4,6 +4,7 @@ import com.chesapeake.technology.JiraRestClient;
 import com.chesapeake.technology.excel.ExcelFileWriter;
 import com.chesapeake.technology.model.IJiraIssueListener;
 import com.chesapeake.technology.model.IssueWrapper;
+import com.typesafe.config.ConfigFactory;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -22,7 +23,6 @@ import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -187,14 +187,15 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
 
             ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-            excelFileWriter.setIncludeMasterReport(masterCheckBox.isSelected());
-            excelFileWriter.setIncludeDeveloperMetrics(developerMetricsCheckBox.isSelected());
-            excelFileWriter.setIncludeSummaryMetrics(summaryCheckBox.isSelected());
+            //TODO: Pass these settings through a Config object
+//            excelFileWriter.setIncludeMasterReport(masterCheckBox.isSelected());
+//            excelFileWriter.setIncludeDeveloperMetrics(developerMetricsCheckBox.isSelected());
+//            excelFileWriter.setIncludeSummaryMetrics(summaryCheckBox.isSelected());
 
             logger.info("Setting active excel data");
             excelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
 
-            excelFileWriter.createJIRAReport();
+            excelFileWriter.createJIRAReport(ConfigFactory.defaultApplication());
 
             updateUserPreferences();
         } catch (Exception exception)
@@ -203,18 +204,25 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
         }
     }
 
+    /**
+     * Set the credentials used to authenticate with JIRA.
+     *
+     * @param username The unique identifier of the user.
+     * @param password The key used to verify the user's identity.
+     * @throws JiraException If the username / password combination is incorrect.
+     */
     void setCredentials(String username, String password) throws JiraException
     {
         this.username = username;
 
-        JiraRestClient requestClient = new JiraRestClient("https://jira.di2e.net/", username, password, false);
+        JiraRestClient requestClient = new JiraRestClient("https://jira.net/", username, password, false);
 
         fieldCustomIdMap = requestClient.getFieldCustomIdMapping();
         requestClient.addIssueListener(this);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
-        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(true, Collections.singleton("JEACO"),
-                Collections.emptyList()));
+        //TODO: Build up the config before calling this
+        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(ConfigFactory.defaultApplication()));
         executorService.scheduleAtFixedRate(() -> Platform.runLater(() -> {
             double progress = progressBar.getProgress();
 

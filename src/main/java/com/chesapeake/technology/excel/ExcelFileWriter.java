@@ -1,5 +1,6 @@
 package com.chesapeake.technology.excel;
 
+import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Issue;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
@@ -9,6 +10,7 @@ import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Writes JIRA analytic information to an excel file.
@@ -18,13 +20,10 @@ import java.util.Map;
  */
 public class ExcelFileWriter
 {
-    private MasterExcelFileWriter masterExcelFileWriter;
-    private DeveloperExcelFileWriter developerExcelFileWriter;
-    private SummaryExcelFileWriter summaryExcelFileWriter;
+    private IssueSummaryExcelFileWriter issueSummaryExcelFileWriter;
+    private TeamSummaryExcelFileWriter teamExcelFileWriter;
+    private GoalMetricsExcelFileWriter goalSummaryExcelFileWriter;
     private XSSFWorkbook workbook;
-    private boolean includeMasterReport = true;
-    private boolean includeDeveloperMetrics = true;
-    private boolean includeSummaryMetrics = true;
 
     private String fileName = "JIRA_Report";
 
@@ -47,9 +46,9 @@ public class ExcelFileWriter
 //            workbook.setSheetOrder("About", 3);
 
             workbook = new XSSFWorkbook();
-            masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-            developerExcelFileWriter = new DeveloperExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
-            summaryExcelFileWriter = new SummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            issueSummaryExcelFileWriter = new IssueSummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            teamExcelFileWriter = new TeamSummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            goalSummaryExcelFileWriter = new GoalMetricsExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
         } catch (Exception exception)
         {
             logger.warn("Failed to construct workbook: ", exception);
@@ -74,109 +73,142 @@ public class ExcelFileWriter
                               Collection<String> activeSprints, Collection<String> activeLabels,
                               List<String> presenceChecks)
     {
-        masterExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
-        developerExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
-        summaryExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
+        issueSummaryExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        issueSummaryExcelFileWriter.setActiveEpics(activeEpics);
+        issueSummaryExcelFileWriter.setActiveSprints(activeSprints);
+        issueSummaryExcelFileWriter.setActiveLabels(activeLabels);
+        issueSummaryExcelFileWriter.setPresenceChecks(presenceChecks);
+
+        teamExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        teamExcelFileWriter.setActiveEpics(activeEpics);
+        teamExcelFileWriter.setActiveSprints(activeSprints);
+        teamExcelFileWriter.setActiveLabels(activeLabels);
+        teamExcelFileWriter.setPresenceChecks(presenceChecks);
+
+        goalSummaryExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        goalSummaryExcelFileWriter.setActiveEpics(activeEpics);
+        goalSummaryExcelFileWriter.setActiveSprints(activeSprints);
+        goalSummaryExcelFileWriter.setActiveLabels(activeLabels);
+        goalSummaryExcelFileWriter.setPresenceChecks(presenceChecks);
     }
 
     /**
      * Writes the content to the excel report file. To configure which tabs are included in the report use
-     * {@link #setIncludeMasterReport(boolean)}, {@link #setIncludeDeveloperMetrics(boolean)},
-     * {@link #setIncludeSummaryMetrics(boolean)}. To configure what content is included within each of the
-     * tabs use {@link #setActiveData(Collection, Collection, Collection, Collection, List)}.
+     * To configure what content is included within each of the tabs use
+     * {@link #setActiveData(Collection, Collection, Collection, Collection, List)}.
      */
-    public void createJIRAReport()
+    public void createJIRAReport(Config config)
     {
+        updateActiveData(config);
+
         logger.info("Attempting to create Excel file");
 
-        try
+        if (!config.getBoolean("jira.sheets.Goal Metrics.hidden"))
         {
-            if (includeSummaryMetrics)
-            {
-                logger.info("Including goal summary information in excel file");
+            logger.info("Including goal summary information in excel file");
 
-                summaryExcelFileWriter.generateReport();
-            } else
-            {
-                logger.info("Clearing goal summary information in excel file");
-
-                workbook.removeSheetAt(0);
-            }
-
-            if (includeDeveloperMetrics)
-            {
-                logger.info("Including individual metrics in excel file");
-
-                developerExcelFileWriter.createJIRAReport();
-            } else
-            {
-                logger.info("Clearing the individual metrics sheet from the excel file");
-
-                workbook.removeSheetAt(1);
-            }
-
-            if (includeMasterReport)
-            {
-                logger.info("Including master report information in excel file");
-
-                masterExcelFileWriter.createJIRAReport();
-            } else
-            {
-                logger.info("Clearing goal summary information in excel file");
-
-                workbook.removeSheetAt(0);
-            }
-
-            logger.info("Preparing to write excel file");
-            masterExcelFileWriter.writeExcelFile(fileName);
-
-            logger.info("Successfully finished writing Excel file");
-        } catch (Exception exception)
+            goalSummaryExcelFileWriter.createJiraReport(config);
+        } else
         {
-            logger.warn("Failed to create JIRA Report: ", exception);
+            logger.info("Clearing goal summary information in excel file");
+
+            workbook.removeSheetAt(workbook.getSheetIndex(goalSummaryExcelFileWriter.getSheet()));
         }
+
+        if (!config.getBoolean("jira.sheets.Team Metrics.hidden"))
+        {
+            logger.info("Including team metrics in excel file");
+
+            teamExcelFileWriter.createJiraReport(config);
+        } else
+        {
+            logger.info("Clearing the individual metrics sheet from the excel file");
+
+            workbook.removeSheetAt(workbook.getSheetIndex(teamExcelFileWriter.getSheet()));
+        }
+
+        if (!config.getBoolean("jira.sheets.Issue Summary.hidden"))
+        {
+            logger.info("Including master report information in excel file");
+
+            issueSummaryExcelFileWriter.createJiraReport(config);
+        } else
+        {
+            logger.info("Clearing goal summary information in excel file");
+
+            workbook.removeSheetAt(workbook.getSheetIndex(issueSummaryExcelFileWriter.getSheet()));
+        }
+
+        logger.info("Preparing to write excel file");
+        issueSummaryExcelFileWriter.writeExcelFile(fileName);
+
+        logger.info("Successfully finished writing Excel file");
     }
 
     /**
-     * Configures if the "master" tab will be included in the report. The "master" tab contains a breakdown
-     * of all initiatives, epics, issues listed in a tree structure with some additional metadata on the issues.
+     * Sets the name of the report.
      *
-     * @param include {@code true} if the "master" tab should be included.
-     */
-    public void setIncludeMasterReport(boolean include)
-    {
-        includeMasterReport = include;
-    }
-
-    /**
-     * Configures if the "developer metrics" tab will be included in the report. The "developer metrics" tab contains
-     * an analysis of developers; ticket estimation abilities.
-     *
-     * @param include {@code true} if the "developer metrics" tab should be included.
-     */
-    public void setIncludeDeveloperMetrics(boolean include)
-    {
-        includeDeveloperMetrics = include;
-    }
-
-    /**
-     * Configures if the "summary" tab will be included in the report. The summary report contains a subset of information
-     * from the "master" tab including initiative and epic's percentage complete in both tabular and graphical representations.
-     *
-     * @param include {@code true} if the "master" tab should be included.
-     */
-    public void setIncludeSummaryMetrics(boolean include)
-    {
-        includeSummaryMetrics = include;
-    }
-
-    /**
-     * Sets the name of the file that the excel report will be written to.
-     *
-     * @param fileName The name of the file without the file's extension.
+     * @param fileName The name of the file.
      */
     void setFileName(String fileName)
     {
         this.fileName = fileName;
+    }
+
+    private void updateActiveData(Config config)
+    {
+        boolean hideEmptyEpics = config.getBoolean("jira.filters.hideEmptyEpics");
+        boolean hideEmptyInitiatives = config.getBoolean("jira.filters.hideEmptyInitiatives");
+
+        if (hideEmptyEpics)
+        {
+            Collection<Issue> epics =
+                    getFilteredActiveEpics(issueSummaryExcelFileWriter.epicStoryMap);
+
+            issueSummaryExcelFileWriter.setActiveEpics(epics);
+            teamExcelFileWriter.setActiveEpics(epics);
+            goalSummaryExcelFileWriter.setActiveEpics(epics);
+        }
+        if (hideEmptyInitiatives)
+        {
+            Collection<Issue> initiatives =
+                    getFilteredActiveInitiatives(issueSummaryExcelFileWriter.initiativeEpicMap, issueSummaryExcelFileWriter.activeEpics);
+
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+        }
+    }
+
+    /**
+     * Gets the initiatives that match the user's filters.
+     *
+     * @param initiativeEpicMap Mapping from Initiative JIRA tickets to Epic JIRA tickets.
+     * @param activeEpics       Epics that have been filtered.
+     * @return The initiatives that match the user's filters.
+     */
+    private Collection<Issue> getFilteredActiveInitiatives(Map<Issue, List<Issue>> initiativeEpicMap, Collection<Issue> activeEpics)
+    {
+        Collection<Issue> activeInitiatives = initiativeEpicMap.keySet();
+
+        activeInitiatives = initiativeEpicMap.entrySet().stream()
+                .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(activeEpics::contains))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        return activeInitiatives;
+    }
+
+    /**
+     * Gets the epics that match the user's filters.
+     *
+     * @param epicStoryMap Mapping from Epic JIRA tickets to Story JIRA tickets.
+     * @return The epics that match the user's filters.
+     */
+    private Collection<Issue> getFilteredActiveEpics(Map<Issue, List<Issue>> epicStoryMap)
+    {
+        return epicStoryMap.keySet().stream()
+                .filter(epic -> epicStoryMap.get(epic).size() > 0)
+                .collect(Collectors.toList());
     }
 }
