@@ -85,11 +85,17 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
     {
         super.createJiraReport(config);
 
+        boolean wrapText = (config.getBoolean("jira.sheets.Issue Summary.wrapText"));
+
+        initiativePercentStyle.setWrapText(wrapText);
+        epicPercentStyle.setWrapText(wrapText);
+        wrapStyle.setWrapText(wrapText);
+
         sheet.setRowSumsBelow(false);
 
         initializeSummaryHeaders();
 
-        writeJiraIssues();
+        writeJiraIssues(config.getString("jira.baseUrl"));
         writePresenceTests();
         hideColumns(config);
         sheet.setAutoFilter(new CellRangeAddress(0, 0, 0, DESCRIPTION_COLUMN + presenceChecks.size()));
@@ -133,10 +139,10 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
         Row row = sheet.getRow(rowIndex);
 
         boolean isInitiative = row.getCell(INITIATIVE_COLUMN) != null
-                && row.getCell(INITIATIVE_COLUMN).getCellStyle().equals(initiativeStyle);
+                && row.getCell(INITIATIVE_COLUMN).getCellStyle().equals(initiativePercentStyle);
 
         boolean isEpic = row.getCell(EPIC_COLUMN) != null
-                && row.getCell(EPIC_COLUMN).getCellStyle().equals(epicStyle);
+                && row.getCell(EPIC_COLUMN).getCellStyle().equals(epicPercentStyle);
 
         return isInitiative || isEpic;
     }
@@ -144,20 +150,20 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
     /**
      * Copies the content from the active issues into an excel sheet.
      */
-    private void writeJiraIssues()
+    private void writeJiraIssues(String baseUrl)
     {
         int row = 1;
 
         for (Map.Entry<Issue, List<Issue>> initiativeEntry : getInitativeEntriesMap())
         {
-            row = createHeaderCell(row, INITIATIVE_COLUMN, initiativeStyle, initiativeEntry.getKey());
+            row = createHeaderCell(baseUrl, row, INITIATIVE_COLUMN, initiativePercentStyle, initiativeDateStyle, initiativeEntry.getKey());
             int initiativeRowStart = row;
 
             for (Issue epicIssue : initiativeEntry.getValue())
             {
                 if (activeEpics.isEmpty() || activeEpics.contains(epicIssue))
                 {
-                    row = createHeaderCell(row, EPIC_COLUMN, epicStyle, epicIssue);
+                    row = createHeaderCell(baseUrl, row, EPIC_COLUMN, epicPercentStyle, epicDateStyle, epicIssue);
                     int epicRowStart = row;
 
                     List<Issue> sortedStories = getSortedStories(epicIssue);
@@ -185,7 +191,7 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
                                     first = false;
                                 }
 
-                                row = createFieldCells(row, storyIssue);
+                                row = createFieldCells(baseUrl, row, storyIssue);
                             }
                         }
                         sheet.groupRow(projectRowStart + 1, row - 1);
@@ -261,6 +267,10 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
         sheet.autoSizeColumn(STORY_COLUMN);
         sheet.autoSizeColumn(STATUS_COLUMN);
         sheet.autoSizeColumn(STORY_POINT_COLUMN);
+        sheet.autoSizeColumn(ISSUE_TYPE_COLUMN);
+        sheet.autoSizeColumn(COMPONENTS_COLUMN);
+        sheet.autoSizeColumn(FIX_VERSION_COLUMN);
+        sheet.autoSizeColumn(PRIORITY_COLUMN);
         sheet.setColumnWidth(DESCRIPTION_COLUMN, 30000);
     }
 
@@ -320,13 +330,13 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
      * @param issue The issue to extract URL information from.
      * @param cell  The excel cell to link to the JIRA issue.
      */
-    private void addURLLink(Issue issue, Cell cell)
+    private void addURLLink(String baseUrl, Issue issue, Cell cell)
     {
         XSSFHyperlink link = (XSSFHyperlink) creationHelper.createHyperlink(HyperlinkType.URL);
 
         if (issue.getKey().contains("https"))
         {
-            link.setAddress("https://jira.di2e.net/browse/" + issue.getKey());
+            link.setAddress(baseUrl + issue.getKey());
             cell.setHyperlink(link);
         }
     }
@@ -334,15 +344,16 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
     /**
      * Creates a special header row cell. These rows represent groups of cells and their content is spread over multiple cells.
      *
-     * @param row       The index of the row to create the new cell in the range [1, Integer.MAX_VALUE).
-     * @param column    The index of the column to create the new cell in the range [1, Integer.MAX_VALUE)
-     * @param cellStyle The color and font configuration used to decorate the cell and all subsequent cells in the same row.
-     * @param issue     The issue to be added to a cell.
+     * @param row             The index of the row to create the new cell in the range [1, Integer.MAX_VALUE).
+     * @param column          The index of the column to create the new cell in the range [1, Integer.MAX_VALUE)
+     * @param cellStyle       The color and font configuration used to decorate the cell and all subsequent cells in the same row.
+     * @param dateFormatStyle The color and font configuration used to decorate date cells in the row.
+     * @param issue           The issue to be added to a cell.
      * @return The next row to add new data to.
      */
-    private int createHeaderCell(int row, int column, CellStyle cellStyle, Issue issue)
+    private int createHeaderCell(String baseUrl, int row, int column, CellStyle cellStyle, CellStyle dateFormatStyle, Issue issue)
     {
-        createFieldCells(row, issue);
+        createFieldCells(baseUrl, row, issue);
         Row excelRow = sheet.getRow(row);
 
         Cell excelCell = excelRow.createCell(column);
@@ -362,6 +373,8 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
             cellToStyle.setCellStyle(cellStyle);
         }
 
+        excelRow.getCell(DUE_DATE_COLUMN).setCellStyle(dateFormatStyle);
+
         return row + 1;
     }
 
@@ -372,7 +385,7 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
      * @param issue       The issue to create a URL link from.
      * @param setEpicCell True if the epic cell should be overriden with the value of the row above it.
      */
-    private void configureCommonCells(Row excelRow, Issue issue, boolean setEpicCell)
+    private void configureCommonCells(String baseUrl, Row excelRow, Issue issue, boolean setEpicCell)
     {
         Cell keyCell = excelRow.createCell(KEY_COLUMN);
         Cell statusCell = excelRow.createCell(STATUS_COLUMN);
@@ -397,7 +410,7 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
 
         keyCell.setCellValue(issue.getKey());
         keyCell.setCellStyle(urlStyle);
-        addURLLink(issue, keyCell);
+        addURLLink(baseUrl, issue, keyCell);
 
         String status = getStatus(issue);
 
@@ -418,7 +431,7 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
      * @param storyIssue The issue to retrieve information from.
      * @return The next row to add new data to.
      */
-    private int createFieldCells(int row, Issue storyIssue)
+    private int createFieldCells(String baseUrl, int row, Issue storyIssue)
     {
         Row excelRow = sheet.createRow(row++);
 
@@ -501,7 +514,7 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
             storyPointCell.setCellValue((double) storyPoints);
         }
 
-        configureCommonCells(excelRow, storyIssue, true);
+        configureCommonCells(baseUrl, excelRow, storyIssue, true);
         summaryCell.setCellValue(storyIssue.getSummary());
 
         for (int column = PROGRAM_COLUMN; column <= DESCRIPTION_COLUMN; column++)
@@ -513,6 +526,8 @@ public class IssueSummaryExcelFileWriter extends AExcelFileWriter
                 excelRow.getCell(column).setCellStyle(wrapStyle);
             }
         }
+
+        excelRow.getCell(DUE_DATE_COLUMN).setCellStyle(dateFormatStyle);
 
         return row;
     }

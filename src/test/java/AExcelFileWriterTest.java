@@ -73,6 +73,12 @@ public abstract class AExcelFileWriterTest
             initiativeEpicMap.put(initiative, epics);
         }
 
+        //Add in childless initiatives
+        for (int i = 0; i < 5; i++)
+        {
+            initiativeEpicMap.put(new MockIssue(), Collections.emptyList());
+        }
+
         return initiativeEpicMap;
     }
 
@@ -84,11 +90,16 @@ public abstract class AExcelFileWriterTest
                 .flatMap(Collection::stream)
                 .forEach(epic -> {
                     int numIssues = random.nextInt(20) + 5;
+                    boolean includeChildren = random.nextInt(100) >= 75;
+
                     List<Issue> issues = new ArrayList<>();
 
-                    for (int issueIndex = 0; issueIndex < numIssues; issueIndex++)
+                    if (includeChildren)
                     {
-                        issues.add(new MockIssue());
+                        for (int issueIndex = 0; issueIndex < numIssues; issueIndex++)
+                        {
+                            issues.add(new MockIssue());
+                        }
                     }
 
                     epicStoryMap.put(epic, issues);

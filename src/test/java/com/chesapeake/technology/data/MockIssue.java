@@ -46,8 +46,8 @@ public class MockIssue extends Issue
     private int timeSpent = random.nextInt();
     private int timeEstimate = random.nextInt();
 
-    private String issueKey = UUID.randomUUID().toString();
-    private String description = UUID.randomUUID().toString();
+    private String issueKey = "https://" + UUID.randomUUID().toString();
+    private String description = createLongString();
     private String summary = UUID.randomUUID().toString();
 
     private Date dueDate = Calendar.getInstance().getTime();
@@ -412,5 +412,17 @@ public class MockIssue extends Issue
         issueFieldValueMap.put(JiraRestClient.SPRINT_KEY, new JSONArray());
 
         return issueFieldValueMap;
+    }
+
+    private String createLongString()
+    {
+        StringBuilder text = new StringBuilder();
+
+        for (int i = 0; i < random.nextInt(5) + 1; i++)
+        {
+            text.append(UUID.randomUUID().toString());
+        }
+
+        return text.toString();
     }
 }

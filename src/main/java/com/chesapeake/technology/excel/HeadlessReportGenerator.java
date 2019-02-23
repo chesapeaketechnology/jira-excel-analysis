@@ -12,7 +12,6 @@ import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Used to generate pre configured reports. To enable the user to create a custom report
@@ -73,10 +72,8 @@ public class HeadlessReportGenerator implements IJiraIssueListener
 
                 ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-                Collection<Issue> activeEpics = getActiveEpics(epicStoryMap);
-                Collection<Issue> activeInitiatives = getActiveInitiatives(initiativeEpicMap, activeEpics);
 
-                excelFileWriter.setActiveData(activeInitiatives, activeEpics, sprints, labels, presenceChecks);
+                excelFileWriter.setActiveData(initiativeEpicMap.keySet(), epicStoryMap.keySet(), sprints, labels, presenceChecks);
                 excelFileWriter.setFileName(fileName);
                 excelFileWriter.createJIRAReport(config);
             } catch (Exception exception)
@@ -84,45 +81,6 @@ public class HeadlessReportGenerator implements IJiraIssueListener
                 logger.warn("Failed to write excel file: ", exception);
             }
         });
-    }
-
-    /**
-     * Gets the initiatives that match the user's filters.
-     *
-     * @param initiativeEpicMap Mapping from Initiative JIRA tickets to Epic JIRA tickets.
-     * @param activeEpics       Epics that have been filtered.
-     * @return The initiatives that match the user's filters.
-     */
-    private Collection<Issue> getActiveInitiatives(Map<Issue, List<Issue>> initiativeEpicMap, Collection<Issue> activeEpics)
-    {
-        Collection<Issue> activeInitiatives = initiativeEpicMap.keySet();
-
-        boolean includeAllInitiatives = config.getBoolean("jira.filters.hideEmptyGroups");
-
-        if (!includeAllInitiatives)
-        {
-            activeInitiatives = initiativeEpicMap.entrySet().stream()
-                    .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(activeEpics::contains))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-        }
-
-        return activeInitiatives;
-    }
-
-    /**
-     * Gets the epics that match the user's filters.
-     *
-     * @param epicStoryMap Mapping from Epic JIRA tickets to Story JIRA tickets.
-     * @return The epics that match the user's filters.
-     */
-    private Collection<Issue> getActiveEpics(Map<Issue, List<Issue>> epicStoryMap)
-    {
-        boolean includeAllInitiatives = config.getBoolean("jira.filters.hideEmptyGroups");
-
-        return epicStoryMap.keySet().stream()
-                .filter(epic -> includeAllInitiatives || epicStoryMap.get(epic).size() > 0)
-                .collect(Collectors.toList());
     }
 
     /**

@@ -8,10 +8,12 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CreationHelper;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.util.DateFormatConverter;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
@@ -28,6 +30,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -45,11 +48,14 @@ public class AExcelFileWriter
     CreationHelper creationHelper;
 
     CellStyle titleStyle;
-    CellStyle initiativeStyle;
-    CellStyle epicStyle;
+    CellStyle initiativePercentStyle;
+    CellStyle epicPercentStyle;
+    CellStyle initiativeDateStyle;
+    CellStyle epicDateStyle;
     CellStyle wrapStyle;
     CellStyle urlStyle;
     CellStyle dataFormatStyle;
+    CellStyle dateFormatStyle;
 
     Map<Issue, List<Issue>> initiativeEpicMap;
     Map<Issue, List<Issue>> epicStoryMap;
@@ -206,28 +212,28 @@ public class AExcelFileWriter
      */
     private void initializeWorkbook()
     {
-        titleStyle = workbook.createCellStyle();
-        creationHelper = workbook.getCreationHelper();
-
         Font headerFont = workbook.createFont();
+        String dateFormatPattern = DateFormatConverter.convert(Locale.getDefault(), "dd MMMM, yyyy");
+        DataFormat poiFormat = workbook.createDataFormat();
+        short percentFormat = workbook.createDataFormat().getFormat("0.0%");
+        short dateFormat = poiFormat.getFormat(dateFormatPattern);
+        creationHelper = workbook.getCreationHelper();
 
         headerFont.setBold(true);
         headerFont.setFontHeightInPoints((short) 12);
+
+        titleStyle = workbook.createCellStyle();
         titleStyle.setFont(headerFont);
         titleStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
         titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-        initiativeStyle = workbook.createCellStyle();
-        initiativeStyle.setFont(headerFont);
-        initiativeStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
-        initiativeStyle.setFillForegroundColor(IndexedColors.LAVENDER.getIndex());
-        initiativeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        initiativePercentStyle = createHeaderPercentStyle(headerFont, percentFormat, IndexedColors.LAVENDER.getIndex());
+        initiativePercentStyle.setWrapText(true);
+        initiativeDateStyle = createHeaderPercentStyle(headerFont, dateFormat, IndexedColors.LAVENDER.getIndex());
 
-        epicStyle = workbook.createCellStyle();
-        epicStyle.setFont(headerFont);
-        epicStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
-        epicStyle.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
-        epicStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        epicPercentStyle = createHeaderPercentStyle(headerFont, percentFormat, IndexedColors.LIGHT_TURQUOISE.getIndex());
+        epicPercentStyle.setWrapText(true);
+        epicDateStyle = createHeaderPercentStyle(headerFont, dateFormat, IndexedColors.LIGHT_TURQUOISE.getIndex());
 
         urlStyle = workbook.createCellStyle();
         Font urlFont = workbook.createFont();
@@ -240,6 +246,9 @@ public class AExcelFileWriter
 
         dataFormatStyle = workbook.createCellStyle();
         dataFormatStyle.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
+
+        dateFormatStyle = workbook.createCellStyle();
+        dateFormatStyle.setDataFormat(dateFormat);
     }
 
     /**
@@ -247,19 +256,47 @@ public class AExcelFileWriter
      * will be applied to find the interesection of the set of elements that match.
      *
      * @param activeInitiatives The JIRA initiatives that should be included in reports.
-     * @param activeEpics       The JIRA epics that should be included in reports.
-     * @param activeSprints     The JIRA sprints that should be included in reports.
-     * @param activeLabels      The JIRA labels that should be included in reports.
-     * @param presenceChecks    The JIRA labels that should be checked for presence.
      */
-    void setActiveData(Collection<Issue> activeInitiatives, Collection<Issue> activeEpics,
-                       Collection<String> activeSprints, Collection<String> activeLabels,
-                       List<String> presenceChecks)
+    void setActiveInitiatives(Collection<Issue> activeInitiatives)
     {
         this.activeInitiatives = activeInitiatives;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeEpics The JIRA epics that should be included in reports.
+     */
+    void setActiveEpics(Collection<Issue> activeEpics)
+    {
         this.activeEpics = activeEpics;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeSprints The JIRA sprints that should be included in reports.
+     */
+    void setActiveSprints(Collection<String> activeSprints)
+    {
         this.activeSprints = activeSprints;
+    }
+
+    /**
+     * Sets the subsets of elements that should be processed when generating excel reports. All active element filters
+     * will be applied to find the interesection of the set of elements that match.
+     *
+     * @param activeLabels The JIRA labels that should be included in reports.
+     */
+    void setActiveLabels(Collection<String> activeLabels)
+    {
         this.activeLabels = activeLabels;
+    }
+
+    void setPresenceChecks(List<String> presenceChecks)
+    {
         this.presenceChecks = presenceChecks;
     }
 
@@ -373,5 +410,17 @@ public class AExcelFileWriter
         });
 
         return sprintStoryBreakdown;
+    }
+
+    private CellStyle createHeaderPercentStyle(Font headerFont, short dataFormat, short foregroundColor)
+    {
+        CellStyle headerStyle = workbook.createCellStyle();
+
+        headerStyle.setFont(headerFont);
+        headerStyle.setDataFormat(dataFormat);
+        headerStyle.setFillForegroundColor(foregroundColor);
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        return headerStyle;
     }
 }

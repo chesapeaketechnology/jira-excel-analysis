@@ -215,7 +215,7 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
     {
         this.username = username;
 
-        JiraRestClient requestClient = new JiraRestClient("https://jira.di2e.net/", username, password, false);
+        JiraRestClient requestClient = new JiraRestClient("https://jira.net/", username, password, false);
 
         fieldCustomIdMap = requestClient.getFieldCustomIdMapping();
         requestClient.addIssueListener(this);

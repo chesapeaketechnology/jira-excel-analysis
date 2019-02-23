@@ -10,6 +10,7 @@ import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Writes JIRA analytic information to an excel file.
@@ -72,9 +73,23 @@ public class ExcelFileWriter
                               Collection<String> activeSprints, Collection<String> activeLabels,
                               List<String> presenceChecks)
     {
-        issueSummaryExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
-        teamExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
-        goalSummaryExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
+        issueSummaryExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        issueSummaryExcelFileWriter.setActiveEpics(activeEpics);
+        issueSummaryExcelFileWriter.setActiveSprints(activeSprints);
+        issueSummaryExcelFileWriter.setActiveLabels(activeLabels);
+        issueSummaryExcelFileWriter.setPresenceChecks(presenceChecks);
+
+        teamExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        teamExcelFileWriter.setActiveEpics(activeEpics);
+        teamExcelFileWriter.setActiveSprints(activeSprints);
+        teamExcelFileWriter.setActiveLabels(activeLabels);
+        teamExcelFileWriter.setPresenceChecks(presenceChecks);
+
+        goalSummaryExcelFileWriter.setActiveInitiatives(activeInitiatives);
+        goalSummaryExcelFileWriter.setActiveEpics(activeEpics);
+        goalSummaryExcelFileWriter.setActiveSprints(activeSprints);
+        goalSummaryExcelFileWriter.setActiveLabels(activeLabels);
+        goalSummaryExcelFileWriter.setPresenceChecks(presenceChecks);
     }
 
     /**
@@ -84,6 +99,8 @@ public class ExcelFileWriter
      */
     public void createJIRAReport(Config config)
     {
+        updateActiveData(config);
+
         logger.info("Attempting to create Excel file");
 
         if (!config.getBoolean("jira.sheets.Goal Metrics.hidden"))
@@ -136,5 +153,62 @@ public class ExcelFileWriter
     void setFileName(String fileName)
     {
         this.fileName = fileName;
+    }
+
+    private void updateActiveData(Config config)
+    {
+        boolean hideEmptyEpics = config.getBoolean("jira.filters.hideEmptyEpics");
+        boolean hideEmptyInitiatives = config.getBoolean("jira.filters.hideEmptyInitiatives");
+
+        if (hideEmptyEpics)
+        {
+            Collection<Issue> epics =
+                    getFilteredActiveEpics(issueSummaryExcelFileWriter.epicStoryMap);
+
+            issueSummaryExcelFileWriter.setActiveEpics(epics);
+            teamExcelFileWriter.setActiveEpics(epics);
+            goalSummaryExcelFileWriter.setActiveEpics(epics);
+        }
+        if (hideEmptyInitiatives)
+        {
+            Collection<Issue> initiatives =
+                    getFilteredActiveInitiatives(issueSummaryExcelFileWriter.initiativeEpicMap, issueSummaryExcelFileWriter.activeEpics);
+
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+            issueSummaryExcelFileWriter.setActiveInitiatives(initiatives);
+        }
+    }
+
+    /**
+     * Gets the initiatives that match the user's filters.
+     *
+     * @param initiativeEpicMap Mapping from Initiative JIRA tickets to Epic JIRA tickets.
+     * @param activeEpics       Epics that have been filtered.
+     * @return The initiatives that match the user's filters.
+     */
+    private Collection<Issue> getFilteredActiveInitiatives(Map<Issue, List<Issue>> initiativeEpicMap, Collection<Issue> activeEpics)
+    {
+        Collection<Issue> activeInitiatives = initiativeEpicMap.keySet();
+
+        activeInitiatives = initiativeEpicMap.entrySet().stream()
+                .filter(initiativeEntry -> initiativeEntry.getValue().stream().anyMatch(activeEpics::contains))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        return activeInitiatives;
+    }
+
+    /**
+     * Gets the epics that match the user's filters.
+     *
+     * @param epicStoryMap Mapping from Epic JIRA tickets to Story JIRA tickets.
+     * @return The epics that match the user's filters.
+     */
+    private Collection<Issue> getFilteredActiveEpics(Map<Issue, List<Issue>> epicStoryMap)
+    {
+        return epicStoryMap.keySet().stream()
+                .filter(epic -> epicStoryMap.get(epic).size() > 0)
+                .collect(Collectors.toList());
     }
 }
