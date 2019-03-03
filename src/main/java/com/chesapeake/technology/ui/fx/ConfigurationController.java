@@ -4,6 +4,10 @@ import com.chesapeake.technology.JiraRestClient;
 import com.chesapeake.technology.excel.ExcelFileWriter;
 import com.chesapeake.technology.model.IJiraIssueListener;
 import com.chesapeake.technology.model.IssueWrapper;
+import com.chesapeake.technology.model.Report;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -22,7 +26,9 @@ import org.slf4j.LoggerFactory;
 import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +59,10 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
     private CheckBoxTreeItem labelRootItem = new CheckBoxTreeItem<>("Labels");
     private CheckBoxTreeItem sprintRootItem = new CheckBoxTreeItem<>("Sprints");
 
+    private Collection<String> activeLabels = new ArrayList<>();
+
+    private String baseUrl;
+
     private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     @FXML
@@ -65,13 +75,14 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
     private Button generateReportButton;
 
     @FXML
-    private CheckBox masterCheckBox;
+    private CheckBox issueSummaryCheckBox;
 
     @FXML
     private CheckBox developerMetricsCheckBox;
 
     @FXML
-    private CheckBox summaryCheckBox;
+    private CheckBox goalMetricsCheckBox;
+    private ConfigurationController configurationController;
 
     @Override
     public void initialize(URL location, ResourceBundle resources)
@@ -103,6 +114,7 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
     {
         this.initiativeEpicMap = initiativeEpicMap;
         this.epicStoryMap = epicStoryMap;
+        this.fieldCustomIdMap = fieldCustomIdMap;
 
         Platform.runLater(() -> {
             initiativeEpicMap.forEach((initiative, epics) -> {
@@ -147,55 +159,18 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
         try
         {
             logger.info("Generating report action detected");
-
-            Collection<Issue> activeInitiatives = new ArrayList<>();
-            Collection<Issue> activeEpics = new ArrayList<>();
-            Collection<String> activeSprints = new ArrayList<>();
-            Collection<String> activeLabels = new ArrayList<>();
-            List<String> presenceChecks = new ArrayList<>();
-
-            for (Object checkedItem : jiraTreeView.getCheckModel().getCheckedItems())
-            {
-                TreeItem treeItem = (TreeItem) checkedItem;
-                Object value = treeItem.getValue();
-
-                boolean initiative = initiativeRootItem.equals(treeItem.getParent());
-                boolean sprint = sprintRootItem.equals(treeItem.getParent());
-                boolean label = labelRootItem.equals(treeItem.getParent());
-                boolean presenceCheck = presenceCheckRootItem.equals(treeItem.getParent());
-                boolean epic = !sprint && !label && !initiative && !presenceCheck && value instanceof IssueWrapper;
-
-                if (initiative)
-                {
-                    activeInitiatives.add(((IssueWrapper) value).getIssue());
-                } else if (epic)
-                {
-                    activeEpics.add(((IssueWrapper) value).getIssue());
-                } else if (sprint)
-                {
-                    activeSprints.add(value.toString());
-                } else if (label)
-                {
-                    activeLabels.add(value.toString());
-                } else if (presenceCheck)
-                {
-                    presenceChecks.add(value.toString());
-                }
-            }
-
             logger.info("Preparing to create excel writer");
+
+            Config config = generateConfig();
+
+            epicStoryMap.values().forEach(issues -> issues.removeIf(issue -> {
+                return issue.getLabels().stream()
+                        .noneMatch(label -> activeLabels.contains(label));
+            }));
 
             ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
 
-            //TODO: Pass these settings through a Config object
-//            excelFileWriter.setIncludeMasterReport(masterCheckBox.isSelected());
-//            excelFileWriter.setIncludeDeveloperMetrics(developerMetricsCheckBox.isSelected());
-//            excelFileWriter.setIncludeSummaryMetrics(summaryCheckBox.isSelected());
-
-            logger.info("Setting active excel data");
-            excelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
-
-            excelFileWriter.createJIRAReport(ConfigFactory.defaultApplication());
+            excelFileWriter.createJIRAReport(config);
 
             updateUserPreferences();
         } catch (Exception exception)
@@ -211,18 +186,19 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
      * @param password The key used to verify the user's identity.
      * @throws JiraException If the username / password combination is incorrect.
      */
-    void setCredentials(String username, String password) throws JiraException
+    void setCredentials(String baseUrl, String username, String password) throws JiraException
     {
         this.username = username;
+        this.baseUrl = baseUrl;
 
-        JiraRestClient requestClient = new JiraRestClient("https://jira.net/", username, password, false);
+        JiraRestClient requestClient = new JiraRestClient(baseUrl, username, password, false);
 
         fieldCustomIdMap = requestClient.getFieldCustomIdMapping();
         requestClient.addIssueListener(this);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
         //TODO: Build up the config before calling this
-        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(ConfigFactory.defaultApplication()));
+        Executors.newSingleThreadExecutor().submit(() -> requestClient.loadJiraIssues(generateConfig()));
         executorService.scheduleAtFixedRate(() -> Platform.runLater(() -> {
             double progress = progressBar.getProgress();
 
@@ -233,6 +209,73 @@ public class ConfigurationController implements Initializable, IJiraIssueListene
 
             progressBar.setProgress(progress + .02);
         }), 0, 1, TimeUnit.SECONDS);
+    }
+
+    private Config generateConfig()
+    {
+        Collection<Issue> activeInitiatives = new ArrayList<>();
+        Collection<Issue> activeEpics = new ArrayList<>();
+        Collection<String> activeSprints = new ArrayList<>();
+        List<String> presenceChecks = new ArrayList<>();
+        Map<String, Object> configMap = new HashMap<>();
+
+        activeLabels.clear();
+
+        for (Object checkedItem : jiraTreeView.getCheckModel().getCheckedItems())
+        {
+            TreeItem treeItem = (TreeItem) checkedItem;
+            Object value = treeItem.getValue();
+
+            boolean initiative = initiativeRootItem.equals(treeItem.getParent());
+            boolean sprint = sprintRootItem.equals(treeItem.getParent());
+            boolean label = labelRootItem.equals(treeItem.getParent());
+            boolean presenceCheck = presenceCheckRootItem.equals(treeItem.getParent());
+            boolean epic = !sprint && !label && !initiative && !presenceCheck && value instanceof IssueWrapper;
+
+            if (initiative)
+            {
+                activeInitiatives.add(((IssueWrapper) value).getIssue());
+            } else if (epic)
+            {
+                activeEpics.add(((IssueWrapper) value).getIssue());
+            } else if (sprint)
+            {
+                activeSprints.add(value.toString());
+            } else if (label)
+            {
+                activeLabels.add(value.toString());
+            } else if (presenceCheck)
+            {
+                presenceChecks.add(value.toString());
+            }
+        }
+
+        Report.Filter filter = new Report.Filter();
+        Report report = new Report();
+
+        report.setFileName("Report");
+        filter.setLabels(activeLabels);
+        filter.setSprintNames(activeSprints);
+        report.setPresence(presenceChecks);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        try
+        {
+            String reportJson = "[" + objectMapper.writeValueAsString(report) + "]";
+
+            configMap.put("reports", reportJson);
+        } catch (JsonProcessingException exception)
+        {
+            logger.warn("Failed to generate JSON: ", exception);
+        }
+
+        String[] projects = {"JEACO", "VOLTRON", "RAPTORX", "RP"};
+        configMap.put("jira.importFullHistory", false);
+        configMap.put("jira.filters.initiatives", true);
+        configMap.put("jira.filters.projects", Arrays.asList(projects));
+        configMap.put("jira.baseUrl", baseUrl);
+
+        return ConfigFactory.parseMap(configMap).withFallback(ConfigFactory.load("application.conf"));
     }
 
     private void updateUserPreferences()

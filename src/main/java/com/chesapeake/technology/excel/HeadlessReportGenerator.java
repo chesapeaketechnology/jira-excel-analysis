@@ -37,12 +37,12 @@ public class HeadlessReportGenerator implements IJiraIssueListener
      * @param username       Authentication key to access JIRA server
      * @param password       Authentication password to access JIRA server
      */
-    HeadlessReportGenerator(String configFilePath, String username, String password) throws JiraException
+    public void loadIssues(String configFilePath, String username, String password) throws JiraException
     {
-        Config config = ConfigFactory.load(configFilePath);
+        config = ConfigFactory.load(configFilePath);
+
         String baseUrl = config.getString("jira.baseUrl");
         boolean includeChangeLogs = config.getBoolean("jira.importFullHistory");
-
         JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), includeChangeLogs);
 
         requestClient.addIssueListener(this);

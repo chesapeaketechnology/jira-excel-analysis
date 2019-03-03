@@ -60,7 +60,7 @@
     </CheckTreeView>
     <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnSpan="2" GridPane.rowIndex="4">
         <children>
-            <CheckBox fx:id="masterCheckBox" alignment="TOP_LEFT" mnemonicParsing="false" selected="true"
+            <CheckBox fx:id="issueSummaryCheckBox" alignment="TOP_LEFT" mnemonicParsing="false" selected="true"
                       text="Goal Summary"/>
             <CheckBox fx:id="developerMetricsCheckBox" alignment="TOP_LEFT" mnemonicParsing="false" selected="true"
                       text="Individual Metrics">
@@ -68,7 +68,7 @@
                     <Insets left="30.0"/>
                 </HBox.margin>
             </CheckBox>
-            <CheckBox fx:id="summaryCheckBox" alignment="TOP_LEFT" mnemonicParsing="false" selected="true"
+            <CheckBox fx:id="goalMetricsCheckBox" alignment="TOP_LEFT" mnemonicParsing="false" selected="true"
                       text="Summary Metadata">
                 <HBox.margin>
                     <Insets left="30.0"/>

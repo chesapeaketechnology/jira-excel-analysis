@@ -414,11 +414,13 @@ public class JiraRestClient
         {
             try
             {
+                logger.info("Loading custom fields");
                 JiraClient jiraClient = new JiraClient(httpClient, baseUrl, credentials);
 
                 String epicsJQL = "project in (" + project + ")";
 
                 fieldCustomIdMapping = Issue.getCustomFieldMappings(jiraClient.getRestClient(), epicsJQL);
+                logger.info("Finished loading custom fields");
             } catch (Exception exception)
             {
                 logger.warn("Failed to load custom fields for project {}: ", project, exception);

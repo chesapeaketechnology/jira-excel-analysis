@@ -80,25 +80,26 @@ public class LoginController implements Initializable
     @FXML
     private Button signInButton;
 
+    @FXML
+    private TextField jiraUrlField;
+
     public LoginController() throws IOException
     {
         FXMLLoader loader = new FXMLLoader(LoginController.class.getClassLoader().getResource("fx/configure_reports.fxml"));
 
         configurationParent = loader.load();
         configurationController = loader.getController();
+    }
 
+    @Override
+    public void initialize(URL location, ResourceBundle resources)
+    {
         String password = System.getenv("NEXUS_PASSWORD");
 
         if (password != null)
         {
             passwordField.setText(password);
         }
-    }
-
-    @Override
-    public void initialize(URL location, ResourceBundle resources)
-    {
-
     }
 
     @FXML
@@ -118,7 +119,7 @@ public class LoginController implements Initializable
             try
             {
                 //TODO: Show a quick loading bar to let the user know that credentials are being validated
-                configurationController.setCredentials(usernameField.getText(), passwordField.getText());
+                configurationController.setCredentials(jiraUrlField.getText(), usernameField.getText(), passwordField.getText());
 
                 Platform.runLater(() -> {
                     stage.setScene(new Scene(configurationParent));
