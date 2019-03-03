@@ -1,9 +1,13 @@
 package com.chesapeake.technology.excel;
 
+import com.chesapeake.technology.JiraRestClient;
 import com.chesapeake.technology.model.IJiraIssueListener;
 import com.chesapeake.technology.ui.fx.ConfigurationController;
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import net.rcarz.jiraclient.BasicCredentials;
 import net.rcarz.jiraclient.Issue;
+import net.rcarz.jiraclient.JiraException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,11 +33,20 @@ public class HeadlessReportGenerator implements IJiraIssueListener
     /**
      * Creates a report generator that can be run from a headless environment.
      *
-     * @param config User preferences.
+     * @param configFilePath User preferences.
+     * @param username       Authentication key to access JIRA server
+     * @param password       Authentication password to access JIRA server
      */
-    HeadlessReportGenerator(Config config)
+    HeadlessReportGenerator(String configFilePath, String username, String password) throws JiraException
     {
-        this.config = config;
+        Config config = ConfigFactory.load(configFilePath);
+        String baseUrl = config.getString("jira.baseUrl");
+        boolean includeChangeLogs = config.getBoolean("jira.importFullHistory");
+
+        JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), includeChangeLogs);
+
+        requestClient.addIssueListener(this);
+        requestClient.loadJiraIssues(config);
     }
 
     @Override
