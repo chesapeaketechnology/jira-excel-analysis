@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -134,8 +133,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
 
         addDeveloperHeaders();
 
-        List<Map.Entry<String, Set<Issue>>> entries = new ArrayList<>(sprintStoryBreakdown.entrySet());
-        entries.sort(Comparator.comparing(Map.Entry::getKey));
+        List<Map.Entry<String, Date>> entries = new ArrayList<>(sprintDateMap.entrySet());
 
         List<Integer> deltas = new ArrayList<>();
 
@@ -147,11 +145,11 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
             excelRow.createCell(DEVELOPER_COLUMN).setCellValue(username);
             deltas.clear();
 
-            for (Map.Entry<String, Set<Issue>> entry : entries)
+            for (Map.Entry<String, Date> entry : entries)
             {
                 if (sprintDateMap.containsKey(entry.getKey()))
                 {
-                    Collection<Issue> filteredIssues = getUserSpecificIssues(username, entry.getValue());
+                    Collection<Issue> filteredIssues = getUserSpecificIssues(username, sprintStoryBreakdown.get(entry.getKey()));
 
                     if (filteredIssues.size() > 0)
                     {
@@ -364,7 +362,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
         properties.forEach(propertySet -> {
             if (sprintName.equals(propertySet.get("name")))
             {
-                String completionDate = propertySet.get("completeDate").toString();
+                String completionDate = propertySet.get("endDate").toString();
                 if (completionDate != null && !completionDate.contains("null"))
                 {
                     try
