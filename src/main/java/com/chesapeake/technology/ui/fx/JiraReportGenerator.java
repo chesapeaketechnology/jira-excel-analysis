@@ -57,8 +57,8 @@ public class JiraReportGenerator
     {
         if (args.length > 0)
         {
-            String username = "cjohnson";
-            String password = "D82Fvn@hjs";
+            String username = args[0];
+            String password = args[1];
 
             boolean includeChangeLogs = true;
 
