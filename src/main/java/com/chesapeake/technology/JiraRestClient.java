@@ -237,7 +237,7 @@ public class JiraRestClient
         }
         try
         {
-            Issue.SearchResult epicQueryResult = searchIssues(epicsJQL, "names");
+            Issue.SearchResult epicQueryResult = searchIssues(epicsJQL, "changelog");
             logger.info("Successfully queried children of: {}", epicsJQL);
             epicStoryMap.putAll(getEpicStoryMap(epicQueryResult));
             initiativeEpicMap.put(new EmptyIssue("Unassigned Epic"), new ArrayList<>(epicStoryMap.keySet()));

@@ -32,6 +32,7 @@ import java.lang.invoke.MethodHandles;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -135,20 +136,28 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
 
         List<Map.Entry<String, Date>> entries = new ArrayList<>(sprintDateMap.entrySet());
 
-        List<Integer> deltas = new ArrayList<>();
+        List<Integer> individualDeltas = new ArrayList<>();
+        List<List<Integer>> teamDeltas = new ArrayList<>();
+        List<String> sprints = new ArrayList<>();
 
         for (String username : getUsernames())
         {
             int startingRow = row;
+
             Row excelRow = developerSheet.createRow(row);
 
             excelRow.createCell(DEVELOPER_COLUMN).setCellValue(username);
-            deltas.clear();
+            individualDeltas.clear();
 
             for (Map.Entry<String, Date> entry : entries)
             {
                 if (sprintDateMap.containsKey(entry.getKey()))
                 {
+                    if (!sprints.contains(entry.getKey()))
+                    {
+                        sprints.add(entry.getKey());
+                    }
+
                     Collection<Issue> filteredIssues = getUserSpecificIssues(username, sprintStoryBreakdown.get(entry.getKey()));
 
                     if (filteredIssues.size() > 0)
@@ -182,14 +191,16 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
                         pointsAddedCell.setCellValue(numStoryPointsAdded);
                         averageCell.setCellValue(Double.valueOf(decimalFormat.format(averageTicketSize)));
 
-                        deltas.add(numStoryPointsCompleted - numStoryPointsAtStart);
+                        individualDeltas.add(numStoryPointsCompleted - numStoryPointsAtStart);
                     }
                 }
             }
 
+            teamDeltas.add(new ArrayList<>(individualDeltas));
+
             if (developerSheet.getLastRowNum() > 1)
             {
-                generateLineChart(startingRow, deltas.toArray(new Integer[0]));
+                generateLineChart(startingRow, individualDeltas.toArray(new Integer[0]));
             }
 
             //Create groups of 20 rows to add a buffer between users' data
@@ -198,6 +209,46 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
                 row++;
             }
         }
+
+        if (developerSheet.getLastRowNum() > 1)
+        {
+            for (int i = 0; i < sprints.size(); i++)
+            {
+                Row excelRow = developerSheet.createRow(row + i);
+
+                Cell sprintCell = excelRow.createCell(SPRINT_COLUMN);
+                Cell pointsEstimateCell = excelRow.createCell(SPRINT_COMMITMENT_COLUMN);
+                Cell pointsCompleteCell = excelRow.createCell(COMPLETED_POINTS_COLUMN);
+                Cell pointsAddedCell = excelRow.createCell(POINTS_ADDED_COLUMN);
+                Cell averageCell = excelRow.createCell(AVERAGE_TICKET_SIZE_COLUMN);
+
+                sprintCell.setCellValue(sprints.get(i));
+                pointsEstimateCell.setCellValue(0);
+                pointsCompleteCell.setCellValue(0);
+                pointsAddedCell.setCellValue(0);
+                averageCell.setCellValue(0);
+            }
+
+            generateLineChart(row, getSuccinctTeamDeltas(teamDeltas));
+        }
+    }
+
+    private Integer[] getSuccinctTeamDeltas(List<List<Integer>> teamDeltas)
+    {
+        int arraySize = teamDeltas.stream().map(List::size).max(Integer::compareTo).orElse(0);
+
+        Integer[] succinctTeamDeltas = new Integer[arraySize];
+        Arrays.fill(succinctTeamDeltas, 0);
+
+        for (List<Integer> teamDelta : teamDeltas)
+        {
+            for (int index = 0; index < teamDelta.size(); index++)
+            {
+                succinctTeamDeltas[index] += teamDelta.get(index);
+            }
+        }
+
+        return succinctTeamDeltas;
     }
 
     /**
@@ -265,13 +316,14 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
 
         valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
 
+        int lastRow = dataStartingRow + deltas.length - 1;
         XDDFNumericalDataSource sprintDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), SPRINT_COLUMN, SPRINT_COLUMN));
+                new CellRangeAddress(dataStartingRow, lastRow, SPRINT_COLUMN, SPRINT_COLUMN));
         XDDFNumericalDataSource<Integer> deltaDataSource = XDDFDataSourcesFactory.fromArray(deltas, null);
         XDDFNumericalDataSource<Double> completedDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), COMPLETED_POINTS_COLUMN, COMPLETED_POINTS_COLUMN));
+                new CellRangeAddress(dataStartingRow, lastRow, COMPLETED_POINTS_COLUMN, COMPLETED_POINTS_COLUMN));
         XDDFNumericalDataSource<Double> commitmentDataSource = XDDFDataSourcesFactory.fromNumericCellRange(developerSheet,
-                new CellRangeAddress(dataStartingRow, developerSheet.getLastRowNum(), SPRINT_COMMITMENT_COLUMN, SPRINT_COMMITMENT_COLUMN));
+                new CellRangeAddress(dataStartingRow, lastRow, SPRINT_COMMITMENT_COLUMN, SPRINT_COMMITMENT_COLUMN));
 
         XDDFChartData.Series deltaSeries = chartData.addSeries(sprintDataSource, deltaDataSource);
         XDDFChartData.Series completedSeries = chartData.addSeries(sprintDataSource, completedDataSource);

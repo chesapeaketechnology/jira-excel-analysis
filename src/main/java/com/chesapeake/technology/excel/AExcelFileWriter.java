@@ -136,7 +136,8 @@ class AExcelFileWriter
                 .filter(issue -> {
                     String name = issue.getStatus().getName();
 
-                    return name.equalsIgnoreCase("Done") || name.equalsIgnoreCase("Resolved");
+                    return name.equalsIgnoreCase("Done") || name.equalsIgnoreCase("Resolved")
+                            || name.equalsIgnoreCase("In Testing");
                 })
                 .collect(Collectors.toSet());
     }
