@@ -2,3 +2,6 @@
 log.out
 reports/*
 !/libs/net.rcarz.jira.client.fork.jar
+.gradle/
+*.class
+build/*

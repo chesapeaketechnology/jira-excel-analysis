@@ -133,7 +133,12 @@ class AExcelFileWriter
                 .flatMap(Collection::stream)
                 .filter(Objects::nonNull)
                 .filter(issue -> issue.getStatus() != null)
-                .filter(issue -> issue.getStatus().getName().equalsIgnoreCase("Done"))
+                .filter(issue -> {
+                    String name = issue.getStatus().getName();
+
+                    return name.equalsIgnoreCase("Done") || name.equalsIgnoreCase("Resolved")
+                            || name.equalsIgnoreCase("In Testing");
+                })
                 .collect(Collectors.toSet());
     }
 
@@ -284,6 +289,8 @@ class AExcelFileWriter
                 sprintStoryBreakdown.put(name, sprintIssues);
             });
         });
+
+        sprintDateMap = MapUtil.sortByValue(sprintDateMap);
 
         return sprintStoryBreakdown;
     }
