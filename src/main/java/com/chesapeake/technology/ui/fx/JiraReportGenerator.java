@@ -52,6 +52,7 @@ import java.util.Collection;
 public class JiraReportGenerator
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+    private static boolean INCLUDE_CHANGE_LOGS = true;
 
     public static void main(String[] args) throws Exception
     {
@@ -60,25 +61,18 @@ public class JiraReportGenerator
             String username = args[0];
             String password = args[1];
 
-            boolean includeChangeLogs = true;
-
-            Config headlessConfig = ConfigFactory.load("cti.conf");
+            Config headlessConfig = ConfigFactory.load(args[2]);
             String baseUrl = headlessConfig.getString("jira-excel-analysis.baseUrl");
             Collection<String> projects = headlessConfig.getStringList("jira-excel-analysis.projects");
             Collection<String> usernames = headlessConfig.getStringList("jira-excel-analysis.usernames");
 
-//            if (args.length > 1 && args[1].equals("developer"))
-//            {
-//                includeChangeLogs = false;
-//            }
-
-            JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), includeChangeLogs);
+            JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), INCLUDE_CHANGE_LOGS);
 
             requestClient.addIssueListener(new HeadlessReportGenerator(headlessConfig));
             requestClient.loadJiraIssues(headlessConfig.getBoolean("jira-excel-analysis.includeInitiatives"), projects, usernames);
         } else
         {
-            logger.warn("Failed to buid jira report: please specify a configuration file");
+            logger.warn("Failed to build jira report: please specify a configuration file");
         }
     }
 }

@@ -18,6 +18,8 @@ import java.util.Map;
  */
 public class ExcelFileWriter
 {
+    private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
     private MasterExcelFileWriter masterExcelFileWriter;
     private DeveloperExcelFileWriter developerExcelFileWriter;
     private SummaryExcelFileWriter summaryExcelFileWriter;
@@ -27,8 +29,6 @@ public class ExcelFileWriter
     private boolean includeSummaryMetrics = true;
 
     private String fileName = "JIRA_Report";
-
-    private Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     /**
      * Initializes an excel workbook and creates the sheets that will show analytics within it.
@@ -41,14 +41,9 @@ public class ExcelFileWriter
     {
         try
         {
-            //TODO: Optionally create the workbook from the DefaultSheet.xlsx to include additional details about the environment
-//            File file = new File(ExcelFileWriter.class.getResource("/DefaultSheet.xlsx").toURI());
-//            workbook = new XSSFWorkbook(file);
-//            workbook.setSheetOrder("About", 3);
-
             workbook = new XSSFWorkbook();
-            masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
             developerExcelFileWriter = new DeveloperExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+            masterExcelFileWriter = new MasterExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
             summaryExcelFileWriter = new SummaryExcelFileWriter(workbook, initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
         } catch (Exception exception)
         {
@@ -74,8 +69,8 @@ public class ExcelFileWriter
                               Collection<String> activeSprints, Collection<String> activeLabels,
                               List<String> presenceChecks)
     {
-        masterExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
         developerExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
+        masterExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
         summaryExcelFileWriter.setActiveData(activeInitiatives, activeEpics, activeSprints, activeLabels, presenceChecks);
     }
 

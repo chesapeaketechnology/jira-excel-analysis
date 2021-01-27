@@ -279,10 +279,11 @@ class AExcelFileWriter
                 String name = sprint.getProperty("name");
                 String startDate = sprint.getProperty("startDate");
                 Set<Issue> sprintIssues = sprintStoryBreakdown.getOrDefault(name, new HashSet<>());
+                boolean pastSprint = Field.getDate(startDate).before(Date.from(java.time.Instant.now()));
 
                 sprintIssues.add(story);
 
-                if (startDate != null && !startDate.contains("null"))
+                if (startDate != null && !startDate.contains("null") && pastSprint)
                 {
                     sprintDateMap.put(name, Field.getDate(startDate));
                 }

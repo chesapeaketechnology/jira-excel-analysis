@@ -1,7 +1,6 @@
 package com.chesapeake.technology.excel;
 
 import com.chesapeake.technology.model.IJiraIssueListener;
-import com.chesapeake.technology.ui.fx.ConfigurationController;
 import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Issue;
 import org.slf4j.Logger;
@@ -17,8 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Used to generate pre configured reports. To enable the user to create a custom report
- * see {@link ConfigurationController}.
+ * Used to generate pre configured reports.
  *
  * @since 1.0.0
  */
@@ -64,6 +62,10 @@ public class HeadlessReportGenerator implements IJiraIssueListener
                 logger.info("Generating report for: {}", fileName);
 
                 ExcelFileWriter excelFileWriter = new ExcelFileWriter(initiativeEpicMap, epicStoryMap, fieldCustomIdMap);
+
+                // Disabled because this feature is no longer operational
+                // TODO: Evaluate the level of effort required to restore this project
+//                excelFileWriter.setIncludeSummaryMetrics(false);
 
                 List<Issue> activeEpics = epicStoryMap.keySet().stream().filter(epic -> epic.getLabels().containsAll(labels)).collect(Collectors.toList());
                 List<Issue> finalActiveEpics = activeEpics;
