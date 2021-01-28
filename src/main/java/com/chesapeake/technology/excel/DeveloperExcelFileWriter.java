@@ -32,7 +32,6 @@ import java.lang.invoke.MethodHandles;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,7 +42,9 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +66,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
 
     private final XSSFSheet developerSheet;
     private final SimpleDateFormat jiraDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    private final SimpleDateFormat sprintStartDateFormat = new SimpleDateFormat("MM/yy (W)");
 
     private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -116,7 +118,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
         Cell deltaCell = titleRow.createCell(COMMITMENT_DELTA_SIZE_COLUMN);
 
         userCell.setCellValue("User");
-        sprintCell.setCellValue("Sprint");
+        sprintCell.setCellValue("Sprint Month-Year (Week)");
         sprintCommitmentCell.setCellValue("Initial Sprint Commitment");
         completedPointsCell.setCellValue("Completed # of Points");
         pointsAddedCell.setCellValue("# of Points Added");
@@ -189,7 +191,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
                         int delta = numStoryPointsCompleted - numStoryPointsAtStart;
                         double averageTicketSize = getAverageTicketSize(filteredIssues);
 
-                        sprintCell.setCellValue(entry.getKey());
+                        sprintCell.setCellValue(sprintStartDateFormat.format(entry.getValue()));
                         pointsEstimateCell.setCellValue(numStoryPointsAtStart);
                         pointsCompleteCell.setCellValue(numStoryPointsCompleted);
                         pointsAddedCell.setCellValue(numStoryPointsAdded);
@@ -211,11 +213,24 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
             }
         }
 
+        List<String> sprintDates = sprintDateMap.values().stream().map(sprintStartDateFormat::format).collect(Collectors.toList());
+
+        addTeamMetricsData(sprintDates, row);
+    }
+
+    private void addTeamMetricsData(List<String> sprintDates, int row)
+    {
         if (developerSheet.getLastRowNum() > 1)
         {
-            for (int i = 0; i < sprints.size(); i++)
+
+            for (int i = 0; i < sprintDates.size(); i++)
             {
                 Row excelRow = developerSheet.createRow(row + i);
+
+                if (i == 0)
+                {
+                    excelRow.createCell(DEVELOPER_COLUMN).setCellValue("Team");
+                }
 
                 Cell sprintCell = excelRow.createCell(SPRINT_COLUMN);
                 Cell pointsEstimateCell = excelRow.createCell(SPRINT_COMMITMENT_COLUMN);
@@ -224,34 +239,66 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
                 Cell averageCell = excelRow.createCell(AVERAGE_TICKET_SIZE_COLUMN);
                 Cell deltaCell = excelRow.createCell(COMMITMENT_DELTA_SIZE_COLUMN);
 
-                sprintCell.setCellValue(sprints.get(i));
-                pointsEstimateCell.setCellValue(0);
-                pointsCompleteCell.setCellValue(0);
-                pointsAddedCell.setCellValue(0);
-                averageCell.setCellValue(0);
-                deltaCell.setCellValue(0);
+                String sprintName = sprintDates.get(i);
+
+                sprintCell.setCellValue(sprintName);
+                pointsEstimateCell.setCellValue(getSumOfSprintValues(sprintName, SPRINT_COMMITMENT_COLUMN, row));
+                pointsCompleteCell.setCellValue(getSumOfSprintValues(sprintName, COMPLETED_POINTS_COLUMN, row));
+                pointsAddedCell.setCellValue(getSumOfSprintValues(sprintName, POINTS_ADDED_COLUMN, row));
+                averageCell.setCellValue(getAverageTicketSizeForSprint(sprintName, AVERAGE_TICKET_SIZE_COLUMN, row));
+                deltaCell.setCellValue(getSumOfSprintValues(sprintName, COMMITMENT_DELTA_SIZE_COLUMN, row));
             }
 
             generateLineChart(row);
         }
     }
 
-    private Integer[] getSuccinctTeamDeltas(List<List<Integer>> teamDeltas)
+    private int getSumOfSprintValues(String sprintName, int column, int lastRow)
     {
-        int arraySize = teamDeltas.stream().map(List::size).max(Integer::compareTo).orElse(0);
+        AtomicInteger sum = new AtomicInteger(0);
 
-        Integer[] succinctTeamDeltas = new Integer[arraySize];
-        Arrays.fill(succinctTeamDeltas, 0);
+        return getAggregateSprintData(sprintName, column, lastRow, sum::addAndGet);
+    }
 
-        for (List<Integer> teamDelta : teamDeltas)
+    private double getAverageTicketSizeForSprint(String sprintName, int column, int lastRow)
+    {
+        AtomicInteger count = new AtomicInteger(0);
+        AtomicInteger sum = new AtomicInteger(0);
+
+        getAggregateSprintData(sprintName, column, lastRow, value -> {
+            count.incrementAndGet();
+            return sum.addAndGet(value);
+        });
+
+        return (double) sum.get() / count.get();
+    }
+
+    private int getAggregateSprintData(String sprintName, int column, int lastRow, Function<Integer, Integer> aggregator)
+    {
+        int sum = 0;
+
+        for (int rowIndex = 0; rowIndex < lastRow; rowIndex++)
         {
-            for (int index = 0; index < teamDelta.size(); index++)
+            Row row = developerSheet.getRow(rowIndex);
+
+            if (row != null)
             {
-                succinctTeamDeltas[index] += teamDelta.get(index);
+                Cell sprintCell = row.getCell(SPRINT_COLUMN);
+
+                if (sprintCell != null && sprintCell.getStringCellValue().equals(sprintName))
+                {
+
+                    Cell cell = row.getCell(column);
+
+                    if (cell != null)
+                    {
+                        sum += cell.getNumericCellValue();
+                    }
+                }
             }
         }
 
-        return succinctTeamDeltas;
+        return sum;
     }
 
     /**
@@ -352,7 +399,7 @@ class DeveloperExcelFileWriter extends AExcelFileWriter
 
         categoryAxis.getOrAddMajorGridProperties();
         categoryAxis.getOrAddShapeProperties();
-        
+
         completedSeries.plot();
         commitmentSeries.plot();
         pointsAddedSeries.plot();

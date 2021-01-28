@@ -52,21 +52,32 @@ import java.util.Collection;
 public class JiraReportGenerator
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-    private static boolean INCLUDE_CHANGE_LOGS = true;
 
     public static void main(String[] args) throws Exception
     {
+        String username = System.getenv("JIRA_USERNAME");
+        String password = System.getenv("JIRA_PASSWORD");
+
         if (args.length > 0)
         {
-            String username = args[0];
-            String password = args[1];
+            Config headlessConfig;
 
-            Config headlessConfig = ConfigFactory.load(args[2]);
+            if (args.length > 2)
+            {
+                username = args[0];
+                password = args[1];
+
+                headlessConfig = ConfigFactory.load(args[2]);
+            } else
+            {
+                headlessConfig = ConfigFactory.load(args[0]);
+            }
+
             String baseUrl = headlessConfig.getString("jira-excel-analysis.baseUrl");
             Collection<String> projects = headlessConfig.getStringList("jira-excel-analysis.projects");
             Collection<String> usernames = headlessConfig.getStringList("jira-excel-analysis.usernames");
 
-            JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), INCLUDE_CHANGE_LOGS);
+            JiraRestClient requestClient = new JiraRestClient(baseUrl, new BasicCredentials(username, password), true);
 
             requestClient.addIssueListener(new HeadlessReportGenerator(headlessConfig));
             requestClient.loadJiraIssues(headlessConfig.getBoolean("jira-excel-analysis.includeInitiatives"), projects, usernames);
