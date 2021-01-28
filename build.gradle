@@ -8,6 +8,7 @@ buildscript {
 
 plugins {
     id 'java'
+    id 'application'
 }
 
 group 'com.chesapeaketechnologies'
@@ -21,6 +22,10 @@ allprojects {
             url "http://jcenter.bintray.com/"
         }
     }
+}
+
+application {
+    mainClass = 'com.chesapeake.technology.ui.fx'
 }
 
 repositories {

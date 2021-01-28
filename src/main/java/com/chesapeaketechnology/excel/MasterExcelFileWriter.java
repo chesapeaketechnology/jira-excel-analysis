@@ -1,7 +1,7 @@
-package com.chesapeake.technology.excel;
+package com.chesapeaketechnology.excel;
 
-import com.chesapeake.technology.JiraRestClient;
-import com.chesapeake.technology.model.StoryIssueComparator;
+import com.chesapeaketechnology.JiraRestClient;
+import com.chesapeaketechnology.model.StoryIssueComparator;
 import net.rcarz.jiraclient.Component;
 import net.rcarz.jiraclient.Issue;
 import net.rcarz.jiraclient.Version;

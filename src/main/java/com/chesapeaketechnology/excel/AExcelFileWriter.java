@@ -1,6 +1,6 @@
-package com.chesapeake.technology.excel;
+package com.chesapeaketechnology.excel;
 
-import com.chesapeake.technology.JiraRestClient;
+import com.chesapeaketechnology.JiraRestClient;
 import net.rcarz.jiraclient.Field;
 import net.rcarz.jiraclient.Issue;
 import org.apache.poi.ss.usermodel.CellStyle;

@@ -30,10 +30,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package com.chesapeake.technology.ui.fx;
+package com.chesapeaketechnology;
 
-import com.chesapeake.technology.JiraRestClient;
-import com.chesapeake.technology.excel.HeadlessReportGenerator;
+import com.chesapeaketechnology.excel.HeadlessReportGenerator;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import net.rcarz.jiraclient.BasicCredentials;

@@ -9,7 +9,7 @@
 //  pursuant to the copyright license under the clause at
 //  DFARS 252.227-7013 (OCT 1988).
 //========================================================================
-package com.chesapeake.technology.excel;
+package com.chesapeaketechnology.excel;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

@@ -1,6 +1,6 @@
-package com.chesapeake.technology;
+package com.chesapeaketechnology;
 
-import com.chesapeake.technology.model.IJiraIssueListener;
+import com.chesapeaketechnology.model.IJiraIssueListener;
 import net.rcarz.jiraclient.BasicCredentials;
 import net.rcarz.jiraclient.ICredentials;
 import net.rcarz.jiraclient.Issue;

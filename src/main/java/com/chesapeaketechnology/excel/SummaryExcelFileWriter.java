@@ -1,4 +1,4 @@
-package com.chesapeake.technology.excel;
+package com.chesapeaketechnology.excel;
 
 import net.rcarz.jiraclient.Issue;
 import org.apache.poi.ss.SpreadsheetVersion;

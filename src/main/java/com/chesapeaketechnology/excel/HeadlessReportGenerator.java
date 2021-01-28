@@ -1,6 +1,6 @@
-package com.chesapeake.technology.excel;
+package com.chesapeaketechnology.excel;
 
-import com.chesapeake.technology.model.IJiraIssueListener;
+import com.chesapeaketechnology.model.IJiraIssueListener;
 import com.typesafe.config.Config;
 import net.rcarz.jiraclient.Issue;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package com.chesapeake.technology.model;
+package com.chesapeaketechnology.model;
 
 import net.rcarz.jiraclient.Issue;
 
