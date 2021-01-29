@@ -35,10 +35,13 @@ package com.chesapeaketechnology;
 import com.chesapeaketechnology.excel.HeadlessReportGenerator;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import kong.unirest.HttpResponse;
+import kong.unirest.Unirest;
 import net.rcarz.jiraclient.BasicCredentials;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 
@@ -61,16 +64,7 @@ public class JiraReportGenerator
         {
             Config headlessConfig;
 
-            if (args.length > 2)
-            {
-                username = args[0];
-                password = args[1];
-
-                headlessConfig = ConfigFactory.load(args[2]);
-            } else
-            {
-                headlessConfig = ConfigFactory.load(args[0]);
-            }
+            headlessConfig = ConfigFactory.load(args[0]);
 
             String baseUrl = headlessConfig.getString("jira-excel-analysis.baseUrl");
             Collection<String> projects = headlessConfig.getStringList("jira-excel-analysis.projects");
@@ -80,6 +74,23 @@ public class JiraReportGenerator
 
             requestClient.addIssueListener(new HeadlessReportGenerator(headlessConfig));
             requestClient.loadJiraIssues(headlessConfig.getBoolean("jira-excel-analysis.includeInitiatives"), projects, usernames);
+
+            if (args.length > 1)
+            {
+                File directory = new File("reports/Master");
+                File file = directory.listFiles()[0];
+                // The page id can be found by selecting the ellipses in the right hand corner in confluence and
+                // selecting `Page Information` and then copying the number out of the resulting page's URL.
+                String pageId = args[1];
+                HttpResponse<String> response = Unirest.post(baseUrl + "/rest/api/content/" + pageId + "/child/attachment")
+                        .basicAuth(username, password)
+                        .header("X-Atlassian-Token", "nocheck")
+                        .field("file", file)
+                        .asString();
+
+                logger.info("Post Request Status {}", response.getStatus());
+                logger.info("Post Request Body {}", response.getBody());
+            }
         } else
         {
             logger.warn("Failed to build jira report: please specify a configuration file");

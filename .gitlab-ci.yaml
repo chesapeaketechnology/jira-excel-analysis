@@ -5,14 +5,14 @@ cache:
     - .gradle/wrapper
     - .gradle/caches
 
-build:
-  stage: build
+publishReport:
+  stage: publish
   before_script:
     - export GRADLE_USER_HOME=`pwd`/.gradle
     - chmod +x gradlew
   script:
-    -
+    - ./gradlew run --args="cemba.conf 404659530"
 
 
 stages:
-  - publishReport
+  - publish
